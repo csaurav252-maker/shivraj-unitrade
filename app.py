@@ -73,7 +73,7 @@ def seed_default_products():
 
 seed_default_products()
 
-fn_logo_path = "s_.png"
+fn_logo_path = "s__2.png"
 page_icon_file = fn_logo_path if os.path.exists(fn_logo_path) else "🌐"
 
 st.set_page_config(page_title="Shivraj Unitrade | Enterprise Merchant Exporter", page_icon=page_icon_file, layout="wide")
@@ -335,13 +335,13 @@ with st.sidebar:
                     st.session_state.cart = []
                     st.balloons()
 
-# --- MAIN DASHBOARD HEADER WITH EXACT LOGO IMAGE (`s_.png`) ---
+# --- MAIN DASHBOARD HEADER WITH EXACT LOGO IMAGE (`s__2.png`) ---
 col_logo, col_title = st.columns([1, 6])
 with col_logo:
-    if os.path.exists("s_.png"):
-        st.image("s_.png", width=110)
+    if os.path.exists("s__2.png"):
+        st.image("s__2.png", width=110)
     else:
-        st.error("⚠️ 's_.png' file not found in current folder!")
+        st.markdown("<h1>🌐</h1>", unsafe_allow_html=True)
 with col_title:
     st.title("SHIVRAJ UNITRADE")
     st.markdown("### *Enterprise Merchant Exporter Management System*")
