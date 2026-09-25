@@ -7,7 +7,6 @@ st.set_page_config(page_title="Shivraj Unitrade | Merchant Exporter", page_icon=
 
 # Initialize Session State
 if "products" not in st.session_state:
-    # प्रत्येक प्रॉडक्टमध्ये 'cost_price' (खरेदी किंमत) ॲड केली आहे नफा मोजण्यासाठी
     st.session_state.products = {
         "EX101": {"name": "Onion Powder (Premium)", "cost_price": 250, "price_per_kg": 350, "stock_kg": 5000},
         "EX102": {"name": "Garlic Powder (Premium)", "cost_price": 320, "price_per_kg": 450, "stock_kg": 3500},
@@ -75,7 +74,7 @@ with st.sidebar:
                 if not stock_error:
                     grand_total = sum(item['price'] * item['qty'] for item in st.session_state.cart)
                     
-                    # एकूण नफा मोजणी (Total Profit Calculation for Admin)
+                    # एकूण नफा मोजणी (फक्त ॲडमीनसाठी)
                     total_order_profit = 0
                     for c_item in st.session_state.cart:
                         p_info = st.session_state.products[c_item['pid']]
@@ -124,7 +123,7 @@ with st.sidebar:
                         "location": location,
                         "items": list(st.session_state.cart),
                         "amount": grand_total,
-                        "profit": total_order_profit,  #फक्त ॲडमीनसाठी रेकॉर्ड
+                        "profit": total_order_profit,  # गुप्त नफा रेकॉर्ड
                         "balance_due": balance_due,
                         "payment": final_payment_desc,
                         "msg": whatsapp_msg,
@@ -135,7 +134,7 @@ with st.sidebar:
 
                     st.success(f"✅ Order Booked! Total: ₹{grand_total:,.2f}")
                     
-                    # PDF Generation
+                    # PDF Generation (कस्टमरच्या बिलामध्ये प्रॉफिट कुठेही दिसणार नाही)
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("Arial", size=12)
@@ -215,47 +214,53 @@ m4.metric("⚠️ Pending Udhar", f"₹{total_pending_udhar:,.2f}", delta_color=
 
 st.divider()
 
-# --- Separate Tabs for Everything ---
+# --- Professional Main Navigation Tabs ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📦 Live Stock & Add to Cart", 
+    "📦 Product Catalog & Store", 
     "📜 Transaction Logs",
     "⚠️ Udhar Ledger",
-    "📈 Profit Dashboard (Admin Only)",
-    "⚙️ Inventory Management"
+    "📈 Profit Dashboard (Admin Locked)",
+    "⚙️ Inventory Management (Admin Locked)"
 ])
 
-# --- TAB 1: STOCK & ADD TO CART ---
+# --- TAB 1: PRODUCT CATALOG & STORE (Professional Grid View) ---
 with tab1:
-    st.subheader("Available Warehouse Stock & Quick Add to Cart")
+    st.subheader("Available Warehouse Products & Quick Shopping")
     if not st.session_state.products:
         st.warning("No products available in the warehouse currently.")
     else:
-        for pid, p in st.session_state.products.items():
-            col_info, col_btn = st.columns([3, 1])
-            with col_info:
-                st.info(f"**{p['name']}** (ID: `{pid}`) | **Selling Rate:** ₹{p['price_per_kg']}/KG | **Stock Left:** **{p['stock_kg']} KG**")
-            with col_btn:
-                qty_to_add = st.number_input("Qty (KG)", min_value=1, value=50, step=10, key=f"qty_{pid}")
-                if st.button("Add to Cart 🛒", key=f"add_{pid}"):
-                    if qty_to_add > p['stock_kg']:
-                        st.error("Not enough stock!")
-                    else:
-                        item_exists = False
-                        for item in st.session_state.cart:
-                            if item['pid'] == pid:
-                                item['qty'] += qty_to_add
-                                item_exists = True
-                                break
-                        if not item_exists:
-                            st.session_state.cart.append({
-                                "pid": pid,
-                                "name": p['name'],
-                                "price": p['price_per_kg'],
-                                "qty": qty_to_add
-                            })
-                        st.success(f"Added {qty_to_add}kg of {p['name']}!")
-                        st.rerun()
-            st.markdown("---")
+        # प्रॉडक्ट्स सुंदर ग्रिड/कॉलम फॉरमॅटमध्ये दाखवणे
+        cols = st.columns(3)
+        for i, (pid, p) in enumerate(st.session_state.products.items()):
+            col_idx = i % 3
+            with cols[col_idx]:
+                with st.container(border=True):
+                    st.markdown(f"### **{p['name']}**")
+                    st.caption(f"Product ID: `{pid}`")
+                    st.markdown(f"💰 **Rate:** ₹{p['price_per_kg']} / KG")
+                    st.markdown(f"📦 **Stock Available:** `{p['stock_kg']} KG`")
+                    
+                    qty_to_add = st.number_input("Select Qty (KG):", min_value=1, value=50, step=10, key=f"qty_{pid}")
+                    
+                    if st.button("🛒 Add to Cart", key=f"add_{pid}", use_container_width=True):
+                        if qty_to_add > p['stock_kg']:
+                            st.error("Not enough stock!")
+                        else:
+                            item_exists = False
+                            for item in st.session_state.cart:
+                                if item['pid'] == pid:
+                                    item['qty'] += qty_to_add
+                                    item_exists = True
+                                    break
+                            if not item_exists:
+                                st.session_state.cart.append({
+                                    "pid": pid,
+                                    "name": p['name'],
+                                    "price": p['price_per_kg'],
+                                    "qty": qty_to_add
+                                })
+                            st.success(f"Added {qty_to_add}kg!")
+                            st.rerun()
 
 # --- TAB 2: TRANSACTION LOGS ---
 with tab2:
@@ -320,72 +325,87 @@ with tab3:
                     st.markdown(f"🔔 [Send Reminder]({rem_url})")
             st.markdown("---")
 
-# --- TAB 4: PROFIT DASHBOARD (ADMIN ONLY) ---
+# --- TAB 4: PROFIT DASHBOARD (PASSWORD PROTECTED) ---
 with tab4:
-    st.subheader("📈 Secret Profit Dashboard (Only for Admin)")
-    st.info("⚠️ This tab is strictly confidential and tracks your net earnings. Customers cannot see this.")
-
-    total_net_profit = sum(log.get('profit', 0) for log in st.session_state.export_logs)
+    st.subheader("🔒 Admin Restricted Area: Profit Dashboard")
+    admin_pass_1 = st.text_input("Enter Admin Password to View Profit:", type="password", key="pass_profit")
     
-    st.metric("🔥 Total Net Profit Earned", f"₹{total_net_profit:,.2f}")
-    st.divider()
+    # डीफॉल्ट पासवर्ड 'admin123' सेट केला आहे, तू हवा तो बदलू शकतोस
+    if admin_pass_1 == "admin123":
+        st.success("✅ Access Granted! Confidential Profit Analytics:")
+        total_net_profit = sum(log.get('profit', 0) for log in st.session_state.export_logs)
+        
+        st.metric("🔥 Total Net Profit Earned", f"₹{total_net_profit:,.2f}")
+        st.divider()
 
-    st.markdown("### Order-wise Profit Breakdown")
-    if not st.session_state.export_logs:
-        st.info("No orders yet to calculate profit.")
-    else:
-        for i, log in enumerate(reversed(st.session_state.export_logs), 1):
-            order_profit = log.get('profit', 0)
-            st.markdown(f"""
-            **{i}. Order Date:** {log['time']} | **Customer:** {log['buyer']}  
-            * **Total Bill Amount:** ₹{log['amount']:,.2f}  
-            * 🟢 **Net Profit from this order:** **₹{order_profit:,.2f}**  
-            """)
-            st.markdown("---")
-
-# --- TAB 5: INVENTORY MANAGEMENT ---
-with tab5:
-    st.subheader("Manage Products (Add or Remove)")
-    col_add, col_rem = st.columns(2)
-
-    with col_add:
-        st.markdown("### ➕ Add New Product")
-        with st.form("add_product_form", clear_on_submit=True):
-            new_id = st.text_input("Product ID (e.g., EX104):").strip().upper()
-            new_name = st.text_input("Product Name:").strip()
-            new_cost = st.number_input("Cost Price per KG (₹) [For Profit Calc]:", min_value=1, value=300)
-            new_price = st.number_input("Selling Price per KG (₹):", min_value=1, value=500)
-            new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000)
-            add_btn = st.form_submit_button("Add Product to Warehouse")
-
-        if add_btn:
-            if not new_id or not new_name:
-                st.error("❌ Please provide both Product ID and Name!")
-            elif new_id in st.session_state.products:
-                st.error("❌ This Product ID already exists!")
-            else:
-                st.session_state.products[new_id] = {
-                    "name": new_name,
-                    "cost_price": new_cost,
-                    "price_per_kg": new_price,
-                    "stock_kg": new_stock
-                }
-                st.success(f"✅ Product '{new_name}' added successfully!")
-                st.rerun()
-
-    with col_rem:
-        st.markdown("### ❌ Remove Existing Product")
-        if not st.session_state.products:
-            st.info("No products available to remove.")
+        st.markdown("### Order-wise Confidential Profit Breakdown")
+        if not st.session_state.export_logs:
+            st.info("No orders yet to calculate profit.")
         else:
-            with st.form("remove_product_form"):
-                rem_options = {f"{p['name']} (ID: {pid})": pid for pid, p in st.session_state.products.items()}
-                rem_selected = st.selectbox("Select Product to Delete:", list(rem_options.keys()))
-                rem_pid = rem_options[rem_selected]
-                remove_btn = st.form_submit_button("Delete Selected Product")
+            for i, log in enumerate(reversed(st.session_state.export_logs), 1):
+                order_profit = log.get('profit', 0)
+                st.markdown(f"""
+                **{i}. Order Date:** {log['time']} | **Customer:** {log['buyer']}  
+                * **Total Bill Amount:** ₹{log['amount']:,.2f}  
+                * 🟢 **Net Profit:** **₹{order_profit:,.2f}**  
+                """)
+                st.markdown("---")
+    elif admin_pass_1 != "":
+        st.error("❌ Incorrect Password! Only Admin can view profits.")
+    else:
+        st.info("🔒 Please enter the password above to view confidential profit records.")
 
-            if remove_btn:
-                deleted_name = st.session_state.products[rem_pid]['name']
-                del st.session_state.products[rem_pid]
-                st.success(f"🗑️ Product '{deleted_name}' deleted successfully!")
-                st.rerun()
+# --- TAB 5: INVENTORY MANAGEMENT (PASSWORD PROTECTED) ---
+with tab5:
+    st.subheader("🔒 Admin Restricted Area: Inventory Management")
+    admin_pass_2 = st.text_input("Enter Admin Password to Manage Inventory:", type="password", key="pass_inventory")
+
+    if admin_pass_2 == "admin123":
+        st.success("✅ Access Granted! You can now add or remove products.")
+        col_add, col_rem = st.columns(2)
+
+        with col_add:
+            st.markdown("### ➕ Add New Product")
+            with st.form("add_product_form", clear_on_submit=True):
+                new_id = st.text_input("Product ID (e.g., EX104):").strip().upper()
+                new_name = st.text_input("Product Name:").strip()
+                new_cost = st.number_input("Cost Price per KG (₹) [Hidden from Customer]:", min_value=1, value=300)
+                new_price = st.number_input("Selling Price per KG (₹):", min_value=1, value=500)
+                new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000)
+                add_btn = st.form_submit_button("Add Product to Warehouse")
+
+            if add_btn:
+                if not new_id or not new_name:
+                    st.error("❌ Please provide both Product ID and Name!")
+                elif new_id in st.session_state.products:
+                    st.error("❌ This Product ID already exists!")
+                else:
+                    st.session_state.products[new_id] = {
+                        "name": new_name,
+                        "cost_price": new_cost,
+                        "price_per_kg": new_price,
+                        "stock_kg": new_stock
+                    }
+                    st.success(f"✅ Product '{new_name}' added successfully!")
+                    st.rerun()
+
+        with col_rem:
+            st.markdown("### ❌ Remove Existing Product")
+            if not st.session_state.products:
+                st.info("No products available to remove.")
+            else:
+                with st.form("remove_password_protected_form"):
+                    rem_options = {f"{p['name']} (ID: {pid})": pid for pid, p in st.session_state.products.items()}
+                    rem_selected = st.selectbox("Select Product to Delete:", list(rem_options.keys()))
+                    rem_pid = rem_options[rem_selected]
+                    remove_btn = st.form_submit_button("Delete Selected Product")
+
+                if remove_btn:
+                    deleted_name = st.session_state.products[rem_pid]['name']
+                    del st.session_state.products[rem_pid]
+                    st.success(f"🗑️ Product '{deleted_name}' deleted successfully!")
+                    st.rerun()
+    elif admin_pass_2 != "":
+        st.error("❌ Incorrect Password!")
+    else:
+        st.info("🔒 Please enter the password above to unlock inventory controls.")
