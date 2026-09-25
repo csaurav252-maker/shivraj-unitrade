@@ -283,7 +283,7 @@ with st.sidebar:
                     grand_total = float(current_grand_total)
                     total_order_profit = sum((float(c_item['price']) - float(current_prods[c_item['pid']]['cost_price'])) * float(c_item['qty']) for c_item in st.session_state.cart)
 
-                    final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f})" if payment_mode == "Dual Payment (Two Modes)" else f"{payment_mode} (Paid Now: Rs.{paid_amount:,.2f})"
+                    final_payment_desc = f"Initial: {payment_mode} (Paid: Rs.{paid_amount:,.2f})"
 
                     for c_item in st.session_state.cart:
                         update_db_stock(c_item['pid'], current_prods[c_item['pid']]['stock_kg'] - float(c_item['qty']))
@@ -314,7 +314,7 @@ with st.sidebar:
                             "time": timestamp, "buyer": buyer_name, "phone": buyer_phone, "location": location,
                             "items": list(st.session_state.cart), "amount": float(grand_total), "paid_amount": float(paid_amount),
                             "profit": float(total_order_profit), "balance_due": float(credit_amount), "payment": final_payment_desc,
-                            "msg": whatsapp_msg, "status": f"Pending (Credit: Rs.{credit_amount:,.2f})" if credit_amount > 0 else "Paid"
+                            "msg": whatsapp_msg, "status": f"Pending (Due: Rs.{credit_amount:,.2f})" if credit_amount > 0 else "Paid"
                         })
                         st.success("✅ स्थायी स्वरूपात डेटाबेसमध्ये ऑर्डर सेव्ह झाली!")
                     else:
@@ -384,7 +384,7 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("All Sales & Dispatch History")
+    st.subheader("All Sales & Dispatch History (Detailed Breakdown)")
     logs_data = get_db_logs()
     if logs_data:
         st.download_button("📥 Download All History as CSV", data=pd.DataFrame(logs_data).to_csv(index=False).encode('utf-8'), file_name='history.csv', mime='text/csv')
@@ -396,8 +396,13 @@ with tab2:
         search_query = st.text_input("🔍 Search Customer/Location:", key="search_txn").strip().lower()
         for i, log in enumerate(reversed([l for l in logs_data if search_query in l['buyer'].lower() or search_query in l['location'].lower()]), 1):
             with st.container(border=True):
-                st.markdown(f"**{i}. {log['time']}** | **Customer:** {log['buyer']} ({log['location']}) | **Status:** {log['status']}")
-                st.markdown(f"Total: Rs.{log['amount']:,.2f} | Paid: Rs.{log['paid_amount']:,.2f} | **Due: Rs.{log['balance_due']:,.2f}**")
+                st.markdown(f"**{i}. {log['time']}** | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
+                st.markdown(f"💰 **Total Bill:** Rs.{log['amount']:,.2f} | 💵 **Total Paid:** Rs.{log['paid_amount']:,.2f} | 🔴 **Current Due Balance:** **Rs.{log['balance_due']:,.2f}**")
+                
+                # Detailed breakdown display
+                with st.expander("📋 View Payment & Transaction Breakdown Details"):
+                    st.markdown(f"**Payment Breakdown History:**\n{log['payment']}")
+                    st.markdown(f"**Phone:** `{log['phone']}`")
                 
                 if log.get('phone'):
                     wa_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(log['msg'])}"
@@ -413,7 +418,7 @@ with tab2:
                         st.error("Wrong password!")
 
 with tab3:
-    st.subheader("📉 Credit Ledger (उधार खाते - Partial & Full Payment)")
+    st.subheader("📉 Credit Ledger (उधार खाते - Partial Payment Tracking)")
     pending_logs = [log for log in get_db_logs() if log['balance_due'] > 0]
     if not pending_logs:
         st.success("🎉 कोणतीही उधार बाकी नाही. सर्व हिशोब चोख आहेत!")
@@ -423,8 +428,10 @@ with tab3:
                 c_info, c_action = st.columns([2, 2])
                 with c_info:
                     st.markdown(f"👤 **{log['buyer']}** (`{log['location']}`)")
-                    st.markdown(f"Total Bill: Rs.{log['amount']:,.2f} | Paid: Rs.{log['paid_amount']:,.2f}")
-                    st.markdown(f"🔴 **Current Due Balance: Rs.{log['balance_due']:,.2f}**")
+                    st.markdown(f"💰 **Total Bill:** Rs.{log['amount']:,.2f} | 💵 **Paid So Far:** Rs.{log['paid_amount']:,.2f}")
+                    st.markdown(f"🔴 **Current Due Balance (बाकी): Rs.{log['balance_due']:,.2f}**")
+                    with st.expander("📜 Pura Payment History Paha"):
+                        st.text(log['payment'])
                 
                 with c_action:
                     partial_pay = st.number_input("Jama kelele paise (Enter amount):", min_value=0.0, max_value=float(log['balance_due']), value=0.0, key=f"partial_{log['id']}")
@@ -436,7 +443,10 @@ with tab3:
                                 new_paid_tot = float(log['paid_amount'] + partial_pay)
                                 new_due = float(log['balance_due'] - partial_pay)
                                 new_status = "Paid (Cleared)" if new_due <= 0 else f"Pending (Due: Rs.{new_due:,.2f})"
-                                new_pay_desc = log['payment'] + f" + Partial Paid: Rs.{partial_pay:,.2f}"
+                                
+                                # Append payment history string
+                                timestamp_now = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
+                                new_pay_desc = log['payment'] + f"\n-> Paid Rs.{partial_pay:,.2f} on {timestamp_now}"
                                 
                                 update_db_credit_payment(log['id'], new_paid_tot, new_due, new_status, new_pay_desc)
                                 st.success(f"Rs.{partial_pay:,.2f} जमा झाले! नवीन बाकी: Rs.{new_due:,.2f}")
@@ -446,7 +456,9 @@ with tab3:
                     with col_b2:
                         if st.button("✅ Fully Clear Due", key=f"full_{log['id']}"):
                             new_paid_tot = float(log['amount'])
-                            update_db_credit_payment(log['id'], new_paid_tot, 0.0, "Paid", log['payment'] + " -> [Fully Settled]")
+                            timestamp_now = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
+                            new_pay_desc = log['payment'] + f"\n-> Fully Settled on {timestamp_now}"
+                            update_db_credit_payment(log['id'], new_paid_tot, 0.0, "Paid", new_pay_desc)
                             st.success("पूर्ण उधार रक्कम जमा झाली!")
                             st.rerun()
 
