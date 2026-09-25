@@ -116,7 +116,6 @@ def get_db_logs():
     conn.close()
     logs = []
     for r in rows:
-        # items is stored as string representation or we can parse if needed. Let's keep it safe.
         import json
         try:
             items_parsed = json.loads(r[5])
@@ -325,7 +324,6 @@ with st.sidebar:
                     else:
                         final_payment_desc = f"{payment_mode} (Paid Now: Rs.{paid_amount:,.2f})"
 
-                    # Reduce Stock in DB permanently
                     for c_item in st.session_state.cart:
                         new_stock_val = current_prods[c_item['pid']]['stock_kg'] - float(c_item['qty'])
                         update_db_stock(c_item['pid'], new_stock_val)
@@ -376,7 +374,7 @@ with st.sidebar:
                     st.success(success_text)
                     st.balloons()
 
-# --- MAIN DASHBOARD AREA ---
+# --- MAIN DASHBOARD AREA (WITH SU LOGO) ---
 col_logo, col_title = st.columns([1, 6])
 with col_logo:
     if os.path.exists("s_.png"):
@@ -520,6 +518,7 @@ with tab2:
                 * **Payment Mode:** `{log['payment']}`  
                 """)
                 
+                # --- SELECTIVE INDIVIDUAL TRANSACTION DOWNLOAD ---
                 single_df = pd.DataFrame([{
                     "Time": log['time'],
                     "Customer": log['buyer'],
