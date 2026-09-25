@@ -41,7 +41,7 @@ def number_to_words(num):
     except:
         return ""
 
-# Initialize Session State securely so data never vanishes
+# Initialize Session State securely
 if "products" not in st.session_state:
     st.session_state.products = {
         "EX101": {"name": "Onion Powder (Premium)", "cost_price": 250, "price_per_kg": 350, "stock_kg": 5000},
@@ -76,40 +76,51 @@ with st.sidebar:
         st.caption(f"🔤 In Words: {number_to_words(cart_total)}")
         st.divider()
         
-        st.subheader("📝 Quick Checkout")
+        st.subheader("📝 Quick Checkout & Payment")
         
         buyer_name = st.text_input("Customer Name:", key="checkout_buyer_name").strip()
         buyer_phone = st.text_input("WhatsApp Number:", key="checkout_buyer_phone").strip()
         location = st.text_input("Destination City:", key="checkout_location").strip()
         
-        payment_options = ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Dual Payment (Two Modes)"]
+        # Payment options (Credit is NOT a mode, it's calculated automatically based on paid amount)
+        payment_options = ["Cash", "UPI / Online", "Cheque", "Dual Payment (Two Modes)"]
         payment_mode = st.selectbox("Payment Mode:", payment_options, key="checkout_payment_mode")
         
+        paid_amount = 0.0
         p1_type = "Cash"
         p1_amt = 0.0
         p2_type = "UPI / Online"
         p2_amt = 0.0
+
+        # We need grand_total early to calculate credit/due
+        current_grand_total = sum(item['price'] * item['qty'] for item in st.session_state.cart) if st.session_state.cart else 0.0
 
         if payment_mode == "Dual Payment (Two Modes)":
             st.markdown("---")
             st.write("🔄 **Payment 1:**")
             c1, c2 = st.columns(2)
             with c1:
-                p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=0, key="d_t1")
+                p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque"], index=0, key="d_t1")
             with c2:
                 p1_amt = st.number_input("Amount 1 (Rs.):", min_value=0.0, value=0.0, key="amt1")
-            if p1_amt > 0:
-                st.caption(f"In Words: {number_to_words(p1_amt)}")
-
+            
             st.write("🔄 **Payment 2:**")
             c3, c4 = st.columns(2)
             with c3:
-                p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=1, key="d_t2")
+                p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque"], index=1, key="d_t2")
             with c4:
                 p2_amt = st.number_input("Amount 2 (Rs.):", min_value=0.0, value=0.0, key="amt2")
-            if p2_amt > 0:
-                st.caption(f"In Words: {number_to_words(p2_amt)}")
+            
+            paid_amount = p1_amt + p2_amt
+            st.markdown(f"**Total Paid Now:** Rs.{paid_amount:,.2f}")
             st.markdown("---")
+        else:
+            paid_amount = st.number_input("Amount Paid Now (Rs.):", min_value=0.0, max_value=current_grand_total, value=current_grand_total, step=100.0, key="single_paid_amt")
+            if paid_amount < current_grand_total:
+                st.caption(f"⚠️ Remaining amount will go to **Credit / Udhar**.")
+
+        # Calculate Credit / Pending Due automatically
+        credit_amount = max(0.0, current_grand_total - paid_amount)
 
         if st.button("Confirm Order & Generate Bill", type="primary", use_container_width=True):
             if not buyer_name or not location:
@@ -125,7 +136,7 @@ with st.sidebar:
                         break
 
                 if not stock_error:
-                    grand_total = sum(item['price'] * item['qty'] for item in st.session_state.cart)
+                    grand_total = current_grand_total
                     
                     total_order_profit = 0
                     for c_item in st.session_state.cart:
@@ -133,18 +144,11 @@ with st.sidebar:
                         item_profit = (c_item['price'] - p_info['cost_price']) * c_item['qty']
                         total_order_profit += item_profit
 
-                    balance_due = 0.0
-                    final_payment_desc = payment_mode
-                    
+                    # Prepare description
                     if payment_mode == "Dual Payment (Two Modes)":
-                        total_paid_now = p1_amt + p2_amt
-                        balance_due = max(0.0, grand_total - total_paid_now)
-                        final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) | Due: Rs.{balance_due:,.2f}"
-                    elif payment_mode == "Credit (Udhar)":
-                        balance_due = grand_total
-                        final_payment_desc = f"Credit (Full Udhar) | Due: Rs.{balance_due:,.2f}"
-                    elif payment_mode in ["Cash", "UPI / Online", "Cheque"]:
-                        balance_due = 0.0
+                        final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f})"
+                    else:
+                        final_payment_desc = f"{payment_mode} (Paid: Rs.{paid_amount:,.2f})"
 
                     for c_item in st.session_state.cart:
                         st.session_state.products[c_item['pid']]['stock_kg'] -= c_item['qty']
@@ -152,8 +156,8 @@ with st.sidebar:
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
                     items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ Rs.{it['price']})" for it in st.session_state.cart])
 
-                    # WhatsApp message now explicitly highlights Balance Due for the customer
-                    due_section_msg = f"⚠️ Balance Due (Udhar): Rs.{balance_due:,.2f}\n" if balance_due > 0 else "✅ Payment Status: Fully Paid\n"
+                    # WhatsApp bill clearly showing Paid vs Credit breakdown
+                    credit_section_msg = f"🔴 Credit / Due Amount: Rs.{credit_amount:,.2f}\n" if credit_amount > 0 else "✅ Payment Status: Fully Paid\n"
 
                     whatsapp_msg = (
                         f"🌐 *SHIVRAJ UNITRADE - INVOICE* 🌐\n"
@@ -165,8 +169,9 @@ with st.sidebar:
                         f"📦 Products:\n{items_summary_str}\n"
                         f"--------------------------------\n"
                         f"💰 Grand Total: Rs.{grand_total:,.2f}\n"
+                        f"💵 Paid Amount: Rs.{paid_amount:,.2f}\n"
+                        f"{credit_section_msg}"
                         f"💳 Payment Mode: {final_payment_desc}\n"
-                        f"{due_section_msg}"
                         f"--------------------------------\n"
                         f"Thank you! 🙏"
                     )
@@ -179,16 +184,17 @@ with st.sidebar:
                         "location": location,
                         "items": list(st.session_state.cart),
                         "amount": grand_total,
+                        "paid_amount": paid_amount,
                         "profit": total_order_profit,
-                        "balance_due": balance_due,
+                        "balance_due": credit_amount,
                         "payment": final_payment_desc,
                         "msg": whatsapp_msg,
-                        "status": f"Pending (Due: Rs.{balance_due:,.2f})" if balance_due > 0 else "Paid"
+                        "status": f"Pending (Credit: Rs.{credit_amount:,.2f})" if credit_amount > 0 else "Paid"
                     }
                     st.session_state.export_logs.append(log_entry)
                     st.session_state.cart = [] 
 
-                    st.success(f"✅ Order Booked Successfully! Grand Total: Rs.{grand_total:,.2f}")
+                    st.success(f"✅ Order Booked Successfully! Grand Total: Rs.{grand_total:,.2f} | Credit Due: Rs.{credit_amount:,.2f}")
                     st.balloons()
 
 # --- MAIN DASHBOARD AREA ---
@@ -207,13 +213,13 @@ st.divider()
 total_revenue = sum(log['amount'] for log in st.session_state.export_logs)
 total_orders_count = len(st.session_state.export_logs)
 total_stock_qty = sum(p['stock_kg'] for p in st.session_state.products.values())
-total_pending_udhar = sum(log['balance_due'] for log in st.session_state.export_logs)
+total_pending_credit = sum(log['balance_due'] for log in st.session_state.export_logs)
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("💰 Total Revenue", f"Rs.{total_revenue:,.2f}")
 m2.metric("📦 Total Orders", f"{total_orders_count}")
 m3.metric("⚖️ Stock Left", f"{total_stock_qty:,} KG")
-m4.metric("⚠️ Pending Udhar", f"Rs.{total_pending_udhar:,.2f}", delta_color="inverse")
+m4.metric("📉 Total Credit (Udhar)", f"Rs.{total_pending_credit:,.2f}", delta_color="inverse")
 
 st.divider()
 
@@ -221,7 +227,7 @@ st.divider()
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📦 Product Catalog & Store", 
     "📜 Transaction Logs",
-    "⚠️ Udhar Ledger",
+    "📉 Credit Ledger",
     "📈 Profit Dashboard (Admin Locked)",
     "⚙️ Inventory Management (Admin Locked)"
 ])
@@ -283,7 +289,7 @@ with tab2:
             **{i}. Timestamp:** {log['time']} {status_color} Status: **{log['status']}**  
             * **Customer:** {log['buyer']} ({log['location']}) — *Ph: {log.get('phone', 'N/A')}*  
             * **Products:** {items_str}  
-            * **Grand Total:** Rs.{log['amount']:,.2f} | **🔴 Balance Due (Baki):** **Rs.{log['balance_due']:,.2f}**  
+            * **Grand Total:** Rs.{log['amount']:,.2f} | **Paid:** Rs.{log['paid_amount']:,.2f} | **📉 Credit Due:** **Rs.{log['balance_due']:,.2f}**  
             * **Payment Mode:** `{log['payment']}`  
             """)
             if log.get('phone'):
@@ -292,15 +298,15 @@ with tab2:
                 st.markdown(f"📲 [Send Bill on WhatsApp]({wa_url})")
             st.markdown("---")
 
-# --- TAB 3: UDHAR LEDGER ---
+# --- TAB 3: CREDIT LEDGER ---
 with tab3:
-    st.subheader("⚠️ Udhar / Pending Dues Tracker")
+    st.subheader("📉 Credit / Pending Dues Ledger")
     pending_logs = [log for log in st.session_state.export_logs if log['balance_due'] > 0]
 
     if not pending_logs:
-        st.success("🎉 Great! No pending dues from any customer right now.")
+        st.success("🎉 Great! No credit balance pending from any customer right now.")
     else:
-        st.warning(f"Total **{len(pending_logs)}** customers have pending payments.")
+        st.warning(f"Total **{len(pending_logs)}** customers have active credit balances.")
         for log in pending_logs:
             col_info, col_action = st.columns([3, 1])
             with col_info:
@@ -309,20 +315,22 @@ with tab3:
                 👤 **Customer:** {log['buyer']}  
                 📍 **Location:** {log['location']} | 📱 **Phone:** {log.get('phone', 'N/A')}  
                 📦 **Products:** {items_str}  
-                🔴 **Pending Udhar Amount:** **Rs.{log['balance_due']:,.2f}** *(Total Bill: Rs.{log['amount']:,.2f})*  
+                💰 **Grand Total:** Rs.{log['amount']:,.2f} | 💵 **Paid:** Rs.{log['paid_amount']:,.2f}  
+                🔴 **Active Credit Due:** **Rs.{log['balance_due']:,.2f}**  
                 📅 **Order Date:** {log['time']}  
                 """)
             with col_action:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("✅ Mark as Paid", key=f"paid_{log['id']}"):
+                if st.button("✅ Clear Credit / Mark Paid", key=f"paid_{log['id']}"):
+                    log['paid_amount'] = log['amount']
                     log['balance_due'] = 0.0
                     log['status'] = "Paid (Cleared)"
-                    log['payment'] += " -> [Fully Paid & Settled]"
-                    st.success("Payment received! Udhar cleared.")
+                    log['payment'] += " -> [Credit Fully Settled]"
+                    st.success("Credit payment received! Ledger updated.")
                     st.rerun()
                 
                 if log.get('phone'):
-                    reminder_msg = f"Hello {log['buyer']}, Gentle reminder from Shivraj Unitrade regarding your pending balance / udhar of Rs. {log['balance_due']:,.2f}. Please clear it at your earliest convenience. Thank you!"
+                    reminder_msg = f"Hello {log['buyer']}, Gentle reminder from Shivraj Unitrade regarding your pending credit balance of Rs. {log['balance_due']:,.2f}. Please clear it at your earliest convenience. Thank you!"
                     rem_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(reminder_msg)}"
                     st.markdown(f"🔔 [Send Reminder]({rem_url})")
             st.markdown("---")
