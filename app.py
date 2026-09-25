@@ -6,8 +6,8 @@ import sqlite3
 import os
 import json
 
-# --- DATABASE SETUP (SQLite) ---
-DB_FILE = "shivraj_unitrade_enterprise.db"
+# --- DATABASE SETUP (Restored to original to keep all your past data & transactions safe) ---
+DB_FILE = "shivraj_unitrade.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -43,7 +43,7 @@ def init_db():
         )
     ''')
 
-    # Expenses Table
+    # Expenses Table for True Net Profit Tracking
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -338,13 +338,13 @@ with st.sidebar:
                     st.session_state.cart = []
                     st.balloons()
 
-# --- MAIN DASHBOARD HEADER ---
+# --- MAIN DASHBOARD HEADER WITH REAL LOGO IMAGE (`s_.png`) ---
 col_logo, col_title = st.columns([1, 6])
 with col_logo:
     if os.path.exists("s_.png"):
         st.image("s_.png", width=100)
     else:
-        st.markdown("🟢 **[SU Logo]**")
+        st.markdown("🟢 **[SU Logo Missing]**")
 with col_title:
     st.title("SHIVRAJ UNITRADE")
     st.markdown("### *Enterprise Merchant Exporter Management System*")
@@ -446,7 +446,6 @@ with tab2:
                     st.text(f"Balance Due: ₹{log['balance_due']:,.2f}")
                     st.markdown(f"**Payment History & Trail:**\n{log['payment']}")
                     
-                    # Printable text format download option
                     invoice_text = f"""SHIVRAJ UNITRADE - COMMERCIAL INVOICE
 =====================================
 Date: {log['time']}
@@ -460,7 +459,7 @@ Payment Status: {log['status']}
 -------------------------------------
 Payment Record Logs:
 {log['payment']}
-================================-----
+=====================================
 Thank you for doing business with Shivraj Unitrade!"""
                     st.download_button("📥 Download Official Printable Invoice (.txt)", data=invoice_text.encode('utf-8'), file_name=f"Invoice_{log['buyer']}_{log['id']}.txt", mime="text/plain", key=f"dl_inv_{log['id']}")
 
@@ -572,7 +571,7 @@ with tab4:
             st.metric("Total Operational Expenses", f"₹{total_exp:,.2f}")
             st.metric("True Net Business Profit", f"₹{net_prof:,.2f}", delta_color="normal" if net_prof >= 0 else "inverse")
             
-            st.info("True Net Profit is calculated automatically by subtracting operational expenses (shipping, packaging, clearance) from gross product margins.")
+            st.info("True Net Profit is calculated automatically by subtracting operational expenses from gross product margins.")
 
     elif admin_pass_prof:
         st.error("Incorrect password.")
