@@ -167,17 +167,11 @@ def delete_db_log(log_id):
     conn.commit()
     conn.close()
 
-def clear_all_db_logs():
+def update_db_credit_payment(log_id, new_paid_total, new_balance_due, status, payment_str):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM export_logs")
-    conn.commit()
-    conn.close()
-
-def update_db_log_credit(log_id, paid_amt, status, payment_str):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE export_logs SET paid_amount = ?, balance_due = 0.0, status = ?, payment = ? WHERE id = ?", (paid_amt, status, payment_str, log_id))
+    cursor.execute("UPDATE export_logs SET paid_amount = ?, balance_due = ?, status = ?, payment = ? WHERE id = ?", 
+                   (new_paid_total, new_balance_due, status, payment_str, log_id))
     conn.commit()
     conn.close()
 
@@ -419,23 +413,47 @@ with tab2:
                         st.error("Wrong password!")
 
 with tab3:
-    st.subheader("📉 Credit Ledger (उधार खाते)")
+    st.subheader("📉 Credit Ledger (उधार खाते - Partial & Full Payment)")
     pending_logs = [log for log in get_db_logs() if log['balance_due'] > 0]
     if not pending_logs:
-        st.success("🎉 कोणतीही उधार बाकी नाही.")
+        st.success("🎉 कोणतीही उधार बाकी नाही. सर्व हिशोब चोख आहेत!")
     else:
         for log in pending_logs:
-            col_info, col_action = st.columns([3, 1])
-            with col_info:
-                st.markdown(f"👤 **{log['buyer']}** ({log['location']}) — Due: **Rs.{log['balance_due']:,.2f}**")
-            with col_action:
-                if st.button("✅ Clear Credit", key=f"paid_{log['id']}"):
-                    update_db_log_credit(log['id'], log['amount'], "Paid", log['payment'] + " -> Settled")
-                    st.success("Cleared!")
-                    st.rerun()
+            with st.container(border=True):
+                c_info, c_action = st.columns([2, 2])
+                with c_info:
+                    st.markdown(f"👤 **{log['buyer']}** (`{log['location']}`)")
+                    st.markdown(f"Total Bill: Rs.{log['amount']:,.2f} | Paid: Rs.{log['paid_amount']:,.2f}")
+                    st.markdown(f"🔴 **Current Due Balance: Rs.{log['balance_due']:,.2f}**")
+                
+                with c_action:
+                    # Partial Payment Input
+                    partial_pay = st.number_input("jama kelele paise (Enter amount):", min_value=0.0, max_value=float(log['balance_due']), value=0.0, key=f"partial_{log['id']}")
+                    
+                    col_b1, col_b2 = st.columns(2)
+                    with col_b1:
+                        if st.button("💵 Add Partial Pay", key=f"btn_part_{log['id']}"):
+                            if partial_pay > 0:
+                                new_paid_tot = float(log['paid_amount'] + partial_pay)
+                                new_due = float(log['balance_due'] - partial_pay)
+                                new_status = "Paid (Cleared)" if new_due <= 0 else f"Pending (Due: Rs.{new_due:,.2f})"
+                                new_pay_desc = log['payment'] + f" + Partial Paid: Rs.{partial_pay:,.2f}"
+                                
+                                update_db_credit_payment(log['id'], new_paid_tot, new_due, new_status, new_pay_desc)
+                                st.success(f"Rs.{partial_pay:,.2f} जमा झाले! नवीन बाकी: Rs.{new_due:,.2f}")
+                                st.rerun()
+                            else:
+                                st.warning("कृपया योग्य रक्कम टाaka.")
+                    with col_b2:
+                        if st.button("✅ Fully Clear Due", key=f"full_{log['id']}"):
+                            new_paid_tot = float(log['amount'])
+                            update_db_credit_payment(log['id'], new_paid_tot, 0.0, "Paid", log['payment'] + " -> [Fully Settled]")
+                            st.success("पूर्ण उधार रक्कम जमा झाली!")
+                            st.rerun()
+
                 if log.get('phone'):
-                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for pending due of Rs. {log['balance_due']:,.2f}. Thank you!"
-                    st.markdown(f"🔔 [Send Reminder](https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)})")
+                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit due of Rs. {log['balance_due']:,.2f}. Thank you!"
+                    st.markdown(f"🔔 [Send WhatsApp Reminder]({https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)}})".replace("{", "").replace("}", ""))
 
 with tab4:
     st.subheader("🔒 Profit Dashboard")
