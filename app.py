@@ -44,9 +44,9 @@ def number_to_words(num):
 # Initialize Session State securely
 if "products" not in st.session_state:
     st.session_state.products = {
-        "EX101": {"name": "Onion Powder (Premium)", "cost_price": 250, "price_per_kg": 350, "stock_kg": 5000},
-        "EX102": {"name": "Garlic Powder (Premium)", "cost_price": 320, "price_per_kg": 450, "stock_kg": 3500},
-        "EX103": {"name": "Mix Spices Blend (Garam Masala)", "cost_price": 420, "price_per_kg": 600, "stock_kg": 2000},
+        "EX101": {"name": "Onion Powder (Premium)", "cost_price": 250.0, "price_per_kg": 350.0, "stock_kg": 5000.0},
+        "EX102": {"name": "Garlic Powder (Premium)", "cost_price": 320.0, "price_per_kg": 450.0, "stock_kg": 3500.0},
+        "EX103": {"name": "Mix Spices Blend (Garam Masala)", "cost_price": 420.0, "price_per_kg": 600.0, "stock_kg": 2000.0},
     }
 
 if "export_logs" not in st.session_state:
@@ -62,9 +62,9 @@ with st.sidebar:
     if not st.session_state.cart:
         st.info("Your cart is empty.")
     else:
-        cart_total = 0
+        cart_total = 0.0
         for index, c_item in enumerate(st.session_state.cart):
-            item_cost = c_item['price'] * c_item['qty']
+            item_cost = float(c_item['price']) * float(c_item['qty'])
             cart_total += item_cost
             st.markdown(f"**{index+1}. {c_item['name']}**\n{c_item['qty']} KG x Rs.{c_item['price']} = **Rs.{item_cost:,.2f}**")
 
@@ -82,7 +82,6 @@ with st.sidebar:
         buyer_phone = st.text_input("WhatsApp Number:", key="checkout_buyer_phone").strip()
         location = st.text_input("Destination City:", key="checkout_location").strip()
         
-        # Payment options (Credit is NOT a mode, it's calculated automatically based on paid amount)
         payment_options = ["Cash", "UPI / Online", "Cheque", "Dual Payment (Two Modes)"]
         payment_mode = st.selectbox("Payment Mode:", payment_options, key="checkout_payment_mode")
         
@@ -92,8 +91,7 @@ with st.sidebar:
         p2_type = "UPI / Online"
         p2_amt = 0.0
 
-        # We need grand_total early to calculate credit/due
-        current_grand_total = sum(item['price'] * item['qty'] for item in st.session_state.cart) if st.session_state.cart else 0.0
+        current_grand_total = float(sum(float(item['price']) * float(item['qty']) for item in st.session_state.cart)) if st.session_state.cart else 0.0
 
         if payment_mode == "Dual Payment (Two Modes)":
             st.markdown("---")
@@ -102,25 +100,24 @@ with st.sidebar:
             with c1:
                 p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque"], index=0, key="d_t1")
             with c2:
-                p1_amt = st.number_input("Amount 1 (Rs.):", min_value=0.0, value=0.0, key="amt1")
+                p1_amt = float(st.number_input("Amount 1 (Rs.):", min_value=0.0, max_value=float(current_grand_total), value=0.0, step=10.0, key="amt1"))
             
             st.write("🔄 **Payment 2:**")
             c3, c4 = st.columns(2)
             with c3:
                 p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque"], index=1, key="d_t2")
             with c4:
-                p2_amt = st.number_input("Amount 2 (Rs.):", min_value=0.0, value=0.0, key="amt2")
+                p2_amt = float(st.number_input("Amount 2 (Rs.):", min_value=0.0, max_value=float(current_grand_total - p1_amt), value=0.0, step=10.0, key="amt2"))
             
-            paid_amount = p1_amt + p2_amt
+            paid_amount = float(p1_amt + p2_amt)
             st.markdown(f"**Total Paid Now:** Rs.{paid_amount:,.2f}")
             st.markdown("---")
         else:
-            paid_amount = st.number_input("Amount Paid Now (Rs.):", min_value=0.0, max_value=current_grand_total, value=current_grand_total, step=100.0, key="single_paid_amt")
+            paid_amount = float(st.number_input("Amount Paid Now (Rs.):", min_value=0.0, max_value=float(current_grand_total), value=float(current_grand_total), step=10.0, key="single_paid_amt"))
             if paid_amount < current_grand_total:
                 st.caption(f"⚠️ Remaining amount will go to **Credit / Udhar**.")
 
-        # Calculate Credit / Pending Due automatically
-        credit_amount = max(0.0, current_grand_total - paid_amount)
+        credit_amount = float(max(0.0, current_grand_total - paid_amount))
 
         if st.button("Confirm Order & Generate Bill", type="primary", use_container_width=True):
             if not buyer_name or not location:
@@ -130,33 +127,31 @@ with st.sidebar:
             else:
                 stock_error = False
                 for c_item in st.session_state.cart:
-                    if c_item['qty'] > st.session_state.products[c_item['pid']]['stock_kg']:
+                    if float(c_item['qty']) > float(st.session_state.products[c_item['pid']]['stock_kg']):
                         st.error(f"❌ Not enough stock for {c_item['name']}!")
                         stock_error = True
                         break
 
                 if not stock_error:
-                    grand_total = current_grand_total
+                    grand_total = float(current_grand_total)
                     
-                    total_order_profit = 0
+                    total_order_profit = 0.0
                     for c_item in st.session_state.cart:
                         p_info = st.session_state.products[c_item['pid']]
-                        item_profit = (c_item['price'] - p_info['cost_price']) * c_item['qty']
-                        total_order_profit += item_profit
+                        item_profit = (float(c_item['price']) - float(p_info['cost_price'])) * float(c_item['qty'])
+                        total_order_profit += float(item_profit)
 
-                    # Prepare description
                     if payment_mode == "Dual Payment (Two Modes)":
                         final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f})"
                     else:
                         final_payment_desc = f"{payment_mode} (Paid: Rs.{paid_amount:,.2f})"
 
                     for c_item in st.session_state.cart:
-                        st.session_state.products[c_item['pid']]['stock_kg'] -= c_item['qty']
+                        st.session_state.products[c_item['pid']]['stock_kg'] -= float(c_item['qty'])
 
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
                     items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ Rs.{it['price']})" for it in st.session_state.cart])
 
-                    # WhatsApp bill clearly showing Paid vs Credit breakdown
                     credit_section_msg = f"🔴 Credit / Due Amount: Rs.{credit_amount:,.2f}\n" if credit_amount > 0 else "✅ Payment Status: Fully Paid\n"
 
                     whatsapp_msg = (
@@ -183,10 +178,10 @@ with st.sidebar:
                         "phone": buyer_phone,
                         "location": location,
                         "items": list(st.session_state.cart),
-                        "amount": grand_total,
-                        "paid_amount": paid_amount,
-                        "profit": total_order_profit,
-                        "balance_due": credit_amount,
+                        "amount": float(grand_total),
+                        "paid_amount": float(paid_amount),
+                        "profit": float(total_order_profit),
+                        "balance_due": float(credit_amount),
                         "payment": final_payment_desc,
                         "msg": whatsapp_msg,
                         "status": f"Pending (Credit: Rs.{credit_amount:,.2f})" if credit_amount > 0 else "Paid"
@@ -210,15 +205,15 @@ st.image(
 st.divider()
 
 # Metrics Summary
-total_revenue = sum(log['amount'] for log in st.session_state.export_logs)
+total_revenue = float(sum(log['amount'] for log in st.session_state.export_logs))
 total_orders_count = len(st.session_state.export_logs)
-total_stock_qty = sum(p['stock_kg'] for p in st.session_state.products.values())
-total_pending_credit = sum(log['balance_due'] for log in st.session_state.export_logs)
+total_stock_qty = float(sum(p['stock_kg'] for p in st.session_state.products.values()))
+total_pending_credit = float(sum(log['balance_due'] for log in st.session_state.export_logs))
 
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("💰 Total Revenue", f"Rs.{total_revenue:,.2f}")
 m2.metric("📦 Total Orders", f"{total_orders_count}")
-m3.metric("⚖️ Stock Left", f"{total_stock_qty:,} KG")
+m3.metric("⚖️ Stock Left", f"{total_stock_qty:,.1f} KG")
 m4.metric("📉 Total Credit (Udhar)", f"Rs.{total_pending_credit:,.2f}", delta_color="inverse")
 
 st.divider()
@@ -248,10 +243,10 @@ with tab1:
                     st.markdown(f"💰 **Rate:** Rs.{p['price_per_kg']} / KG")
                     st.markdown(f"📦 **Stock Available:** `{p['stock_kg']} KG`")
                     
-                    qty_to_add = st.number_input("Select Qty (KG):", min_value=1, value=50, step=10, key=f"qty_{pid}")
+                    qty_to_add = float(st.number_input("Select Qty (KG):", min_value=1.0, value=50.0, step=10.0, key=f"qty_{pid}"))
                     
                     if st.button("🛒 Add to Cart", key=f"add_{pid}", use_container_width=True):
-                        if qty_to_add > p['stock_kg']:
+                        if qty_to_add > float(p['stock_kg']):
                             st.error("Not enough stock!")
                         else:
                             item_exists = False
@@ -264,8 +259,8 @@ with tab1:
                                 st.session_state.cart.append({
                                     "pid": pid,
                                     "name": p['name'],
-                                    "price": p['price_per_kg'],
-                                    "qty": qty_to_add
+                                    "price": float(p['price_per_kg']),
+                                    "qty": float(qty_to_add)
                                 })
                             st.success(f"Added {qty_to_add}kg!")
                             st.rerun()
@@ -342,7 +337,7 @@ with tab4:
     
     if admin_pass_1 == "admin123":
         st.success("✅ Access Granted! Confidential Profit Analytics:")
-        total_net_profit = sum(log.get('profit', 0) for log in st.session_state.export_logs)
+        total_net_profit = float(sum(log.get('profit', 0.0) for log in st.session_state.export_logs))
         
         st.metric("🔥 Total Net Profit Earned", f"Rs.{total_net_profit:,.2f}")
         st.divider()
@@ -352,7 +347,7 @@ with tab4:
             st.info("No orders yet to calculate profit.")
         else:
             for i, log in enumerate(reversed(st.session_state.export_logs), 1):
-                order_profit = log.get('profit', 0)
+                order_profit = log.get('profit', 0.0)
                 st.markdown(f"""
                 **{i}. Order Date:** {log['time']} | **Customer:** {log['buyer']}  
                 * **Total Bill Amount:** Rs.{log['amount']:,.2f}  
@@ -377,9 +372,9 @@ with tab5:
             st.markdown("### ➕ Add New Product")
             new_id = st.text_input("Product ID (e.g., EX104):", key="new_p_id").strip().upper()
             new_name = st.text_input("Product Name:", key="new_p_name").strip()
-            new_cost = st.number_input("Cost Price per KG (Rs.) [Hidden from Customer]:", min_value=1, value=300, key="new_p_cost")
-            new_price = st.number_input("Selling Price per KG (Rs.):", min_value=1, value=500, key="new_p_price")
-            new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000, key="new_p_stock")
+            new_cost = float(st.number_input("Cost Price per KG (Rs.) [Hidden from Customer]:", min_value=1.0, value=300.0, key="new_p_cost"))
+            new_price = float(st.number_input("Selling Price per KG (Rs.):", min_value=1.0, value=500.0, key="new_p_price"))
+            new_stock = float(st.number_input("Initial Stock (in KG):", min_value=1.0, value=1000.0, key="new_p_stock"))
             
             if st.button("Add Product to Warehouse", key="btn_add_prod"):
                 if not new_id or not new_name:
@@ -389,9 +384,9 @@ with tab5:
                 else:
                     st.session_state.products[new_id] = {
                         "name": new_name,
-                        "cost_price": new_cost,
-                        "price_per_kg": new_price,
-                        "stock_kg": new_stock
+                        "cost_price": float(new_cost),
+                        "price_per_kg": float(new_price),
+                        "stock_kg": float(new_stock)
                     }
                     st.success(f"✅ Product '{new_name}' added successfully!")
                     st.rerun()
