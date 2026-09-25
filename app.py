@@ -1,6 +1,5 @@
 import datetime
 import urllib.parse
-from fpdf import FPDF
 import streamlit as st
 
 st.set_page_config(page_title="Shivraj Unitrade | Merchant Exporter", page_icon="🌐", layout="wide")
@@ -28,7 +27,7 @@ def number_to_words(num):
         elif n < 10000000:
             return convert_section(n // 100000) + "Lakh " + convert_section(n % 100000)
         else:
-            return convert_section(n // 10000000) + "Crore " + convert_section(n % 10000000)
+            return convert_section(n // 10000000) + "Crore " + convert_section(n // 10000000)
 
     try:
         int_part = int(num)
@@ -137,20 +136,20 @@ with st.sidebar:
 
                     balance_due = 0.0
                     final_payment_desc = payment_mode
-                    pdf_payment_desc = payment_mode
+                    invoice_payment_desc = payment_mode
 
                     if payment_mode == "Dual Payment (Two Modes)":
                         total_paid_now = p1_amt + p2_amt
                         balance_due = max(0.0, grand_total - total_paid_now)
                         final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) | Due: Rs.{balance_due:,.2f}"
-                        pdf_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) - Due: Rs.{balance_due:,.2f}"
+                        invoice_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) - Due: Rs.{balance_due:,.2f}"
                     elif payment_mode == "Credit (Udhar)":
                         balance_due = grand_total
                         final_payment_desc = f"Credit (Full Udhar) | Due: Rs.{balance_due:,.2f}"
-                        pdf_payment_desc = f"Credit (Full Udhar) - Due: Rs.{balance_due:,.2f}"
+                        invoice_payment_desc = f"Credit (Full Udhar) - Due: Rs.{balance_due:,.2f}"
                     elif payment_mode in ["Cash", "UPI / Online", "Cheque"]:
                         balance_due = 0.0
-                        pdf_payment_desc = payment_mode
+                        invoice_payment_desc = payment_mode
 
                     for c_item in st.session_state.cart:
                         st.session_state.products[c_item['pid']]['stock_kg'] -= c_item['qty']
@@ -192,53 +191,53 @@ with st.sidebar:
 
                     st.success(f"✅ Order Booked! Total: Rs.{grand_total:,.2f}")
                     
-                    # PDF Generation
-                    pdf = FPDF()
-                    pdf.add_page()
-                    pdf.set_font("Arial", size=12)
-                    pdf.cell(200, 10, txt="SHIVRAJ UNITRADE - INVOICE", ln=True, align="C")
-                    pdf.set_font("Arial", size=10)
-                    pdf.cell(200, 10, txt="Merchant Exporter India", ln=True, align="C")
-                    pdf.ln(5)
-                    pdf.cell(200, 8, txt=f"Date: {timestamp}", ln=True)
-                    pdf.cell(200, 8, txt=f"Customer Name: {buyer_name}", ln=True)
-                    pdf.cell(200, 8, txt=f"Location: {location}", ln=True)
-                    pdf.ln(5)
-                    
-                    pdf.set_font("Arial", style="B", size=10)
-                    pdf.cell(100, 8, txt="Product Name", border=1)
-                    pdf.cell(30, 8, txt="Qty (KG)", border=1, align="C")
-                    pdf.cell(30, 8, txt="Price/kg", border=1, align="R")
-                    pdf.cell(30, 8, txt="Total", border=1, align="R")
-                    pdf.ln(8)
-
-                    pdf.set_font("Arial", size=9)
+                    # Text/HTML Invoice Generator (Error-Free Alternative)
+                    invoice_html = f"""
+                    <div style="border: 2px solid #333; padding: 20px; font-family: Arial; background-color: #f9f9f9; color: #000;">
+                        <h2 style="text-align: center; margin: 0;">SHIVRAJ UNITRADE</h2>
+                        <p style="text-align: center; margin: 5px 0 15px 0; font-size: 14px;">Merchant Exporter India</p>
+                        <hr>
+                        <p><b>Date:</b> {timestamp}</p>
+                        <p><b>Customer Name:</b> {buyer_name}</p>
+                        <p><b>Location:</b> {location}</p>
+                        <br>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                            <tr style="background-color: #ddd;">
+                                <th style="border: 1px solid #999; padding: 8px; text-align: left;">Product Name</th>
+                                <th style="border: 1px solid #999; padding: 8px; text-align: center;">Qty (KG)</th>
+                                <th style="border: 1px solid #999; padding: 8px; text-align: right;">Price/kg</th>
+                                <th style="border: 1px solid #999; padding: 8px; text-align: right;">Total</th>
+                            </tr>
+                    """
                     for it in log_entry['items']:
                         row_total = it['price'] * it['qty']
-                        pdf.cell(100, 7, txt=it['name'], border=1)
-                        pdf.cell(30, 7, txt=str(it['qty']), border=1, align="C")
-                        pdf.cell(30, 7, txt=str(it['price']), border=1, align="R")
-                        pdf.cell(30, 7, txt=f"{row_total:,.2f}", border=1, align="R")
-                        pdf.ln(7)
+                        invoice_html += f"""
+                            <tr>
+                                <td style="border: 1px solid #999; padding: 6px;">{it['name']}</td>
+                                <td style="border: 1px solid #999; padding: 6px; text-align: center;">{it['qty']}</td>
+                                <td style="border: 1px solid #999; padding: 6px; text-align: right;">{it['price']}</td>
+                                <td style="border: 1px solid #999; padding: 6px; text-align: right;">{row_total:,.2f}</td>
+                            </tr>
+                        """
+                    invoice_html += f"""
+                        </table>
+                        <br>
+                        <h3 style="text-align: right; margin: 5px 0;">Grand Total: Rs. {grand_total:,.2f}</h3>
+                        <p style="text-align: right; font-size: 12px; margin: 0;">In Words: {number_to_words(grand_total)}</p>
+                        <p style="text-align: right; font-size: 14px; margin: 5px 0;"><b>Payment Details:</b> {invoice_payment_desc}</p>
+                        <hr>
+                        <p style="text-align: center; font-size: 12px; margin-top: 15px;">Thank you for your business! 🙏</p>
+                    </div>
+                    """
 
-                    pdf.ln(5)
-                    pdf.set_font("Arial", style="B", size=10)
-                    pdf.cell(200, 8, txt=f"Grand Total: Rs. {grand_total:,.2f}", ln=True, align="R")
-                    pdf.set_font("Arial", size=8)
-                    pdf.cell(200, 6, txt=f"In Words: {number_to_words(grand_total)}", ln=True, align="R")
-                    pdf.set_font("Arial", style="B", size=10)
-                    pdf.cell(200, 8, txt=f"Payment Details: {pdf_payment_desc}", ln=True, align="R")
-                    pdf.ln(10)
-                    pdf.set_font("Arial", size=10)
-                    pdf.cell(200, 8, txt="Thank you for your business!", ln=True, align="C")
-                    
-                    pdf_bytes = pdf.output()
+                    st.markdown("### 📄 Generated Invoice Preview:")
+                    st.markdown(invoice_html, unsafe_allow_html=True)
 
                     st.download_button(
-                        label="📄 Download PDF Invoice",
-                        data=pdf_bytes,
-                        file_name=f"Invoice_{buyer_name}.pdf",
-                        mime="application/pdf"
+                        label="📥 Download Bill (HTML Format)",
+                        data=invoice_html,
+                        file_name=f"Invoice_{buyer_name}.html",
+                        mime="text/html"
                     )
 
                     if buyer_phone:
