@@ -78,7 +78,6 @@ with st.sidebar:
         
         st.subheader("📝 Quick Checkout")
         
-        # Using standard inputs instead of a form to prevent context wipeouts
         buyer_name = st.text_input("Customer Name:", key="checkout_buyer_name").strip()
         buyer_phone = st.text_input("WhatsApp Number:", key="checkout_buyer_phone").strip()
         location = st.text_input("Destination City:", key="checkout_location").strip()
@@ -136,26 +135,25 @@ with st.sidebar:
 
                     balance_due = 0.0
                     final_payment_desc = payment_mode
-                    invoice_payment_desc = payment_mode
-
+                    
                     if payment_mode == "Dual Payment (Two Modes)":
                         total_paid_now = p1_amt + p2_amt
                         balance_due = max(0.0, grand_total - total_paid_now)
                         final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) | Due: Rs.{balance_due:,.2f}"
-                        invoice_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) - Due: Rs.{balance_due:,.2f}"
                     elif payment_mode == "Credit (Udhar)":
                         balance_due = grand_total
                         final_payment_desc = f"Credit (Full Udhar) | Due: Rs.{balance_due:,.2f}"
-                        invoice_payment_desc = f"Credit (Full Udhar) - Due: Rs.{balance_due:,.2f}"
                     elif payment_mode in ["Cash", "UPI / Online", "Cheque"]:
                         balance_due = 0.0
-                        invoice_payment_desc = payment_mode
 
                     for c_item in st.session_state.cart:
                         st.session_state.products[c_item['pid']]['stock_kg'] -= c_item['qty']
 
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
                     items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ Rs.{it['price']})" for it in st.session_state.cart])
+
+                    # WhatsApp message now explicitly highlights Balance Due for the customer
+                    due_section_msg = f"⚠️ Balance Due (Udhar): Rs.{balance_due:,.2f}\n" if balance_due > 0 else "✅ Payment Status: Fully Paid\n"
 
                     whatsapp_msg = (
                         f"🌐 *SHIVRAJ UNITRADE - INVOICE* 🌐\n"
@@ -166,8 +164,9 @@ with st.sidebar:
                         f"📍 Location: {location}\n"
                         f"📦 Products:\n{items_summary_str}\n"
                         f"--------------------------------\n"
-                        f"💰 Grand Total: Rs.{grand_total:,.2f} ({number_to_words(grand_total)})\n"
-                        f"💳 Payment: {final_payment_desc}\n"
+                        f"💰 Grand Total: Rs.{grand_total:,.2f}\n"
+                        f"💳 Payment Mode: {final_payment_desc}\n"
+                        f"{due_section_msg}"
                         f"--------------------------------\n"
                         f"Thank you! 🙏"
                     )
@@ -184,10 +183,10 @@ with st.sidebar:
                         "balance_due": balance_due,
                         "payment": final_payment_desc,
                         "msg": whatsapp_msg,
-                        "status": "Pending" if balance_due > 0 else "Paid"
+                        "status": f"Pending (Due: Rs.{balance_due:,.2f})" if balance_due > 0 else "Paid"
                     }
                     st.session_state.export_logs.append(log_entry)
-                    st.session_state.cart = [] # Clear cart after success
+                    st.session_state.cart = [] 
 
                     st.success(f"✅ Order Booked Successfully! Grand Total: Rs.{grand_total:,.2f}")
                     st.balloons()
@@ -284,7 +283,7 @@ with tab2:
             **{i}. Timestamp:** {log['time']} {status_color} Status: **{log['status']}**  
             * **Customer:** {log['buyer']} ({log['location']}) — *Ph: {log.get('phone', 'N/A')}*  
             * **Products:** {items_str}  
-            * **Grand Total:** Rs.{log['amount']:,.2f} | **Balance Due:** Rs.{log['balance_due']:,.2f}  
+            * **Grand Total:** Rs.{log['amount']:,.2f} | **🔴 Balance Due (Baki):** **Rs.{log['balance_due']:,.2f}**  
             * **Payment Mode:** `{log['payment']}`  
             """)
             if log.get('phone'):
@@ -310,7 +309,7 @@ with tab3:
                 👤 **Customer:** {log['buyer']}  
                 📍 **Location:** {log['location']} | 📱 **Phone:** {log.get('phone', 'N/A')}  
                 📦 **Products:** {items_str}  
-                🔴 **Pending Amount:** **Rs.{log['balance_due']:,.2f}** *(Total Bill: Rs.{log['amount']:,.2f})*  
+                🔴 **Pending Udhar Amount:** **Rs.{log['balance_due']:,.2f}** *(Total Bill: Rs.{log['amount']:,.2f})*  
                 📅 **Order Date:** {log['time']}  
                 """)
             with col_action:
@@ -323,7 +322,7 @@ with tab3:
                     st.rerun()
                 
                 if log.get('phone'):
-                    reminder_msg = f"Hello {log['buyer']}, Gentle reminder from Shivraj Unitrade regarding your pending balance of Rs. {log['balance_due']:,.2f}. Please clear it at your earliest convenience. Thank you!"
+                    reminder_msg = f"Hello {log['buyer']}, Gentle reminder from Shivraj Unitrade regarding your pending balance / udhar of Rs. {log['balance_due']:,.2f}. Please clear it at your earliest convenience. Thank you!"
                     rem_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(reminder_msg)}"
                     st.markdown(f"🔔 [Send Reminder]({rem_url})")
             st.markdown("---")
