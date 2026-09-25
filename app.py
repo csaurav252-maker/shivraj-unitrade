@@ -5,6 +5,43 @@ import streamlit as st
 
 st.set_page_config(page_title="Shivraj Unitrade | Merchant Exporter", page_icon="🌐", layout="wide")
 
+# Helper function to convert number to English words
+def number_to_words(num):
+    if num == 0:
+        return "Zero Rupees Only"
+    
+    units = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", 
+             "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+    tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+
+    def convert_section(n):
+        if n == 0:
+            return ""
+        elif n < 20:
+            return units[n] + " "
+        elif n < 100:
+            return tens[n // 10] + (" " + units[n % 10] if n % 10 != 0 else "") + " "
+        elif n < 1000:
+            return units[n // 100] + " Hundred " + convert_section(n % 100)
+        elif n < 100000:
+            return convert_section(n // 1000) + "Thousand " + convert_section(n % 1000)
+        elif n < 10000000:
+            return convert_section(n // 100000) + "Lakh " + convert_section(n % 100000)
+        else:
+            return convert_section(n // 10000000) + "Crore " + convert_section(n % 10000000)
+
+    try:
+        int_part = int(num)
+        fractional_part = int(round((num - int_part) * 100))
+        
+        words = convert_section(int_part).strip()
+        result = f"{words} Rupees"
+        if fractional_part > 0:
+            result += f" and {convert_section(fractional_part).strip()} Paisa"
+        return result + " Only"
+    except:
+        return ""
+
 # Initialize Session State
 if "products" not in st.session_state:
     st.session_state.products = {
@@ -29,13 +66,14 @@ with st.sidebar:
         for index, c_item in enumerate(st.session_state.cart):
             item_cost = c_item['price'] * c_item['qty']
             cart_total += item_cost
-            st.markdown(f"**{index+1}. {c_item['name']}**\n{c_item['qty']} KG x ₹{c_item['price']} = **₹{item_cost:,.2f}**")
+            st.markdown(f"**{index+1}. {c_item['name']}**\n{c_item['qty']} KG x Rs.{c_item['price']} = **Rs.{item_cost:,.2f}**")
 
         if st.button("🗑️ Clear Cart"):
             st.session_state.cart = []
             st.rerun()
 
-        st.markdown(f"### **Grand Total: ₹{cart_total:,.2f}**")
+        st.markdown(f"### **Grand Total: Rs.{cart_total:,.2f}**")
+        st.caption(f"🔤 In Words: {number_to_words(cart_total)}")
         st.divider()
         
         st.subheader("📝 Quick Checkout")
@@ -44,8 +82,7 @@ with st.sidebar:
             buyer_phone = st.text_input("WhatsApp Number:").strip()
             location = st.text_input("Destination City:").strip()
             
-            # सर्व पेमेंट ऑप्शन्स दिले आहेत
-            payment_options = ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Dual Payment (कोणतेही दोन पर्याय)"]
+            payment_options = ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Dual Payment (Two Modes)"]
             payment_mode = st.selectbox("Payment Mode:", payment_options)
             
             p1_type = "Cash"
@@ -53,42 +90,45 @@ with st.sidebar:
             p2_type = "UPI / Online"
             p2_amt = 0.0
 
-            if payment_mode == "Dual Payment (कोणतेही दोन पर्याय)":
+            if payment_mode == "Dual Payment (Two Modes)":
                 st.markdown("---")
-                st.write("🔄 **पहिले पेमेंट:**")
+                st.write("🔄 **Payment 1:**")
                 c1, c2 = st.columns(2)
                 with c1:
                     p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=0)
                 with c2:
-                    p1_amt = st.number_input("Amount 1 (₹):", min_value=0.0, value=0.0, key="amt1")
+                    p1_amt = st.number_input("Amount 1 (Rs.):", min_value=0.0, value=0.0, key="amt1")
+                if p1_amt > 0:
+                    st.caption(f"In Words: {number_to_words(p1_amt)}")
 
-                st.write("🔄 **दुसरे पेमेंट:**")
+                st.write("🔄 **Payment 2:**")
                 c3, c4 = st.columns(2)
                 with c3:
                     p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=1)
                 with c4:
-                    p2_amt = st.number_input("Amount 2 (₹):", min_value=0.0, value=0.0, key="amt2")
+                    p2_amt = st.number_input("Amount 2 (Rs.):", min_value=0.0, value=0.0, key="amt2")
+                if p2_amt > 0:
+                    st.caption(f"In Words: {number_to_words(p2_amt)}")
                 st.markdown("---")
 
             checkout_btn = st.form_submit_button("Confirm Order & Generate Bill")
 
         if checkout_btn:
             if not buyer_name or not location:
-                st.error("❌ कृपया ग्राहक नाव आणि लोकेशन (City) भरा!")
+                st.error("❌ Please fill customer name and location!")
             elif not st.session_state.cart:
-                st.error("❌ तुमची कार्ट रिकामी आहे!")
+                st.error("❌ Your cart is empty!")
             else:
                 stock_error = False
                 for c_item in st.session_state.cart:
                     if c_item['qty'] > st.session_state.products[c_item['pid']]['stock_kg']:
-                        st.error(f"❌ {c_item['name']} साठी पुरेसा स्टॉक उपलब्ध नाही!")
+                        st.error(f"❌ Not enough stock for {c_item['name']}!")
                         stock_error = True
                         break
 
                 if not stock_error:
                     grand_total = sum(item['price'] * item['qty'] for item in st.session_state.cart)
                     
-                    # एकूण नफा मोजणी (फक्त ॲडमीनसाठी)
                     total_order_profit = 0
                     for c_item in st.session_state.cart:
                         p_info = st.session_state.products[c_item['pid']]
@@ -97,22 +137,26 @@ with st.sidebar:
 
                     balance_due = 0.0
                     final_payment_desc = payment_mode
+                    pdf_payment_desc = payment_mode
 
-                    if payment_mode == "Dual Payment (कोणतेही दोन पर्याय)":
+                    if payment_mode == "Dual Payment (Two Modes)":
                         total_paid_now = p1_amt + p2_amt
                         balance_due = max(0.0, grand_total - total_paid_now)
-                        final_payment_desc = f"Dual ({p1_type}: ₹{p1_amt:,.2f} + {p2_type}: ₹{p2_amt:,.2f}) | Due: ₹{balance_due:,.2f}"
+                        final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) | Due: Rs.{balance_due:,.2f}"
+                        pdf_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f}) - Due: Rs.{balance_due:,.2f}"
                     elif payment_mode == "Credit (Udhar)":
                         balance_due = grand_total
-                        final_payment_desc = f"Credit (Full Udhar) | Due: ₹{balance_due:,.2f}"
+                        final_payment_desc = f"Credit (Full Udhar) | Due: Rs.{balance_due:,.2f}"
+                        pdf_payment_desc = f"Credit (Full Udhar) - Due: Rs.{balance_due:,.2f}"
                     elif payment_mode in ["Cash", "UPI / Online", "Cheque"]:
                         balance_due = 0.0
+                        pdf_payment_desc = payment_mode
 
                     for c_item in st.session_state.cart:
                         st.session_state.products[c_item['pid']]['stock_kg'] -= c_item['qty']
 
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
-                    items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ ₹{it['price']})" for it in st.session_state.cart])
+                    items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ Rs.{it['price']})" for it in st.session_state.cart])
 
                     whatsapp_msg = (
                         f"🌐 *SHIVRAJ UNITRADE - INVOICE* 🌐\n"
@@ -123,7 +167,7 @@ with st.sidebar:
                         f"📍 Location: {location}\n"
                         f"📦 Products:\n{items_summary_str}\n"
                         f"--------------------------------\n"
-                        f"💰 Grand Total: ₹{grand_total:,.2f}\n"
+                        f"💰 Grand Total: Rs.{grand_total:,.2f} ({number_to_words(grand_total)})\n"
                         f"💳 Payment: {final_payment_desc}\n"
                         f"--------------------------------\n"
                         f"Thank you! 🙏"
@@ -137,7 +181,7 @@ with st.sidebar:
                         "location": location,
                         "items": list(st.session_state.cart),
                         "amount": grand_total,
-                        "profit": total_order_profit,  # गुप्त नफा रेकॉर्ड
+                        "profit": total_order_profit,
                         "balance_due": balance_due,
                         "payment": final_payment_desc,
                         "msg": whatsapp_msg,
@@ -146,9 +190,9 @@ with st.sidebar:
                     st.session_state.export_logs.append(log_entry)
                     st.session_state.cart = []
 
-                    st.success(f"✅ Order Booked! Total: ₹{grand_total:,.2f}")
+                    st.success(f"✅ Order Booked! Total: Rs.{grand_total:,.2f}")
                     
-                    # PDF Generation (कस्टमरच्या बिलामध्ये प्रॉफिट कुठेही दिसत नाही)
+                    # PDF Generation
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("Arial", size=12)
@@ -180,7 +224,10 @@ with st.sidebar:
                     pdf.ln(5)
                     pdf.set_font("Arial", style="B", size=10)
                     pdf.cell(200, 8, txt=f"Grand Total: Rs. {grand_total:,.2f}", ln=True, align="R")
-                    pdf.cell(200, 8, txt=f"Payment Details: {final_payment_desc}", ln=True, align="R")
+                    pdf.set_font("Arial", size=8)
+                    pdf.cell(200, 6, txt=f"In Words: {number_to_words(grand_total)}", ln=True, align="R")
+                    pdf.set_font("Arial", style="B", size=10)
+                    pdf.cell(200, 8, txt=f"Payment Details: {pdf_payment_desc}", ln=True, align="R")
                     pdf.ln(10)
                     pdf.set_font("Arial", size=10)
                     pdf.cell(200, 8, txt="Thank you for your business!", ln=True, align="C")
@@ -221,10 +268,10 @@ total_stock_qty = sum(p['stock_kg'] for p in st.session_state.products.values())
 total_pending_udhar = sum(log['balance_due'] for log in st.session_state.export_logs)
 
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("💰 Total Revenue", f"₹{total_revenue:,.2f}")
+m1.metric("💰 Total Revenue", f"Rs.{total_revenue:,.2f}")
 m2.metric("📦 Total Orders", f"{total_orders_count}")
 m3.metric("⚖️ Stock Left", f"{total_stock_qty:,} KG")
-m4.metric("⚠️ Pending Udhar", f"₹{total_pending_udhar:,.2f}", delta_color="inverse")
+m4.metric("⚠️ Pending Udhar", f"Rs.{total_pending_udhar:,.2f}", delta_color="inverse")
 
 st.divider()
 
@@ -237,7 +284,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚙️ Inventory Management (Admin Locked)"
 ])
 
-# --- TAB 1: PRODUCT CATALOG & STORE (Professional Grid View) ---
+# --- TAB 1: PRODUCT CATALOG & STORE ---
 with tab1:
     st.subheader("Available Warehouse Products & Quick Shopping")
     if not st.session_state.products:
@@ -250,7 +297,7 @@ with tab1:
                 with st.container(border=True):
                     st.markdown(f"### **{p['name']}**")
                     st.caption(f"Product ID: `{pid}`")
-                    st.markdown(f"💰 **Rate:** ₹{p['price_per_kg']} / KG")
+                    st.markdown(f"💰 **Rate:** Rs.{p['price_per_kg']} / KG")
                     st.markdown(f"📦 **Stock Available:** `{p['stock_kg']} KG`")
                     
                     qty_to_add = st.number_input("Select Qty (KG):", min_value=1, value=50, step=10, key=f"qty_{pid}")
@@ -294,7 +341,7 @@ with tab2:
             **{i}. Timestamp:** {log['time']} {status_color} Status: **{log['status']}**  
             * **Customer:** {log['buyer']} ({log['location']}) — *Ph: {log.get('phone', 'N/A')}*  
             * **Products:** {items_str}  
-            * **Grand Total:** ₹{log['amount']:,.2f} | **Balance Due:** ₹{log['balance_due']:,.2f}  
+            * **Grand Total:** Rs.{log['amount']:,.2f} | **Balance Due:** Rs.{log['balance_due']:,.2f}  
             * **Payment Mode:** `{log['payment']}`  
             """)
             if log.get('phone'):
@@ -320,7 +367,7 @@ with tab3:
                 👤 **Customer:** {log['buyer']}  
                 📍 **Location:** {log['location']} | 📱 **Phone:** {log.get('phone', 'N/A')}  
                 📦 **Products:** {items_str}  
-                🔴 **Pending Amount:** **₹{log['balance_due']:,.2f}** *(Total Bill: ₹{log['amount']:,.2f})*  
+                🔴 **Pending Amount:** **Rs.{log['balance_due']:,.2f}** *(Total Bill: Rs.{log['amount']:,.2f})*  
                 📅 **Order Date:** {log['time']}  
                 """)
             with col_action:
@@ -347,7 +394,7 @@ with tab4:
         st.success("✅ Access Granted! Confidential Profit Analytics:")
         total_net_profit = sum(log.get('profit', 0) for log in st.session_state.export_logs)
         
-        st.metric("🔥 Total Net Profit Earned", f"₹{total_net_profit:,.2f}")
+        st.metric("🔥 Total Net Profit Earned", f"Rs.{total_net_profit:,.2f}")
         st.divider()
 
         st.markdown("### Order-wise Confidential Profit Breakdown")
@@ -358,8 +405,8 @@ with tab4:
                 order_profit = log.get('profit', 0)
                 st.markdown(f"""
                 **{i}. Order Date:** {log['time']} | **Customer:** {log['buyer']}  
-                * **Total Bill Amount:** ₹{log['amount']:,.2f}  
-                * 🟢 **Net Profit:** **₹{order_profit:,.2f}**  
+                * **Total Bill Amount:** Rs.{log['amount']:,.2f}  
+                * 🟢 **Net Profit:** **Rs.{order_profit:,.2f}**  
                 """)
                 st.markdown("---")
     elif admin_pass_1 != "":
@@ -381,8 +428,8 @@ with tab5:
             with st.form("add_product_form", clear_on_submit=True):
                 new_id = st.text_input("Product ID (e.g., EX104):").strip().upper()
                 new_name = st.text_input("Product Name:").strip()
-                new_cost = st.number_input("Cost Price per KG (₹) [Hidden from Customer]:", min_value=1, value=300)
-                new_price = st.number_input("Selling Price per KG (₹):", min_value=1, value=500)
+                new_cost = st.number_input("Cost Price per KG (Rs.) [Hidden from Customer]:", min_value=1, value=300)
+                new_price = st.number_input("Selling Price per KG (Rs.):", min_value=1, value=500)
                 new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000)
                 add_btn = st.form_submit_button("Add Product to Warehouse")
 
