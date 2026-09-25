@@ -41,20 +41,21 @@ def number_to_words(num):
     except:
         return ""
 
-# Initialize Session State
+# Initialize Session State securely so data never vanishes
 if "products" not in st.session_state:
     st.session_state.products = {
         "EX101": {"name": "Onion Powder (Premium)", "cost_price": 250, "price_per_kg": 350, "stock_kg": 5000},
         "EX102": {"name": "Garlic Powder (Premium)", "cost_price": 320, "price_per_kg": 450, "stock_kg": 3500},
         "EX103": {"name": "Mix Spices Blend (Garam Masala)", "cost_price": 420, "price_per_kg": 600, "stock_kg": 2000},
     }
+
 if "export_logs" not in st.session_state:
     st.session_state.export_logs = []
 
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
-# --- SIDEBAR: SHOPPING CART & QUICK CHECKOUT ---
+# --- SIDEBAR: SHOPPING CART & CHECKOUT ---
 with st.sidebar:
     st.header("🛒 Live Shopping Cart")
     
@@ -76,43 +77,42 @@ with st.sidebar:
         st.divider()
         
         st.subheader("📝 Quick Checkout")
-        with st.form("sidebar_checkout_form"):
-            buyer_name = st.text_input("Customer Name:").strip()
-            buyer_phone = st.text_input("WhatsApp Number:").strip()
-            location = st.text_input("Destination City:").strip()
-            
-            payment_options = ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Dual Payment (Two Modes)"]
-            payment_mode = st.selectbox("Payment Mode:", payment_options)
-            
-            p1_type = "Cash"
-            p1_amt = 0.0
-            p2_type = "UPI / Online"
-            p2_amt = 0.0
+        
+        # Using standard inputs instead of a form to prevent context wipeouts
+        buyer_name = st.text_input("Customer Name:", key="checkout_buyer_name").strip()
+        buyer_phone = st.text_input("WhatsApp Number:", key="checkout_buyer_phone").strip()
+        location = st.text_input("Destination City:", key="checkout_location").strip()
+        
+        payment_options = ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Dual Payment (Two Modes)"]
+        payment_mode = st.selectbox("Payment Mode:", payment_options, key="checkout_payment_mode")
+        
+        p1_type = "Cash"
+        p1_amt = 0.0
+        p2_type = "UPI / Online"
+        p2_amt = 0.0
 
-            if payment_mode == "Dual Payment (Two Modes)":
-                st.markdown("---")
-                st.write("🔄 **Payment 1:**")
-                c1, c2 = st.columns(2)
-                with c1:
-                    p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=0)
-                with c2:
-                    p1_amt = st.number_input("Amount 1 (Rs.):", min_value=0.0, value=0.0, key="amt1")
-                if p1_amt > 0:
-                    st.caption(f"In Words: {number_to_words(p1_amt)}")
+        if payment_mode == "Dual Payment (Two Modes)":
+            st.markdown("---")
+            st.write("🔄 **Payment 1:**")
+            c1, c2 = st.columns(2)
+            with c1:
+                p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=0, key="d_t1")
+            with c2:
+                p1_amt = st.number_input("Amount 1 (Rs.):", min_value=0.0, value=0.0, key="amt1")
+            if p1_amt > 0:
+                st.caption(f"In Words: {number_to_words(p1_amt)}")
 
-                st.write("🔄 **Payment 2:**")
-                c3, c4 = st.columns(2)
-                with c3:
-                    p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=1)
-                with c4:
-                    p2_amt = st.number_input("Amount 2 (Rs.):", min_value=0.0, value=0.0, key="amt2")
-                if p2_amt > 0:
-                    st.caption(f"In Words: {number_to_words(p2_amt)}")
-                st.markdown("---")
+            st.write("🔄 **Payment 2:**")
+            c3, c4 = st.columns(2)
+            with c3:
+                p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=1, key="d_t2")
+            with c4:
+                p2_amt = st.number_input("Amount 2 (Rs.):", min_value=0.0, value=0.0, key="amt2")
+            if p2_amt > 0:
+                st.caption(f"In Words: {number_to_words(p2_amt)}")
+            st.markdown("---")
 
-            checkout_btn = st.form_submit_button("Confirm Order & Generate Bill")
-
-        if checkout_btn:
+        if st.button("Confirm Order & Generate Bill", type="primary", use_container_width=True):
             if not buyer_name or not location:
                 st.error("❌ Please fill customer name and location!")
             elif not st.session_state.cart:
@@ -187,66 +187,10 @@ with st.sidebar:
                         "status": "Pending" if balance_due > 0 else "Paid"
                     }
                     st.session_state.export_logs.append(log_entry)
-                    st.session_state.cart = []
+                    st.session_state.cart = [] # Clear cart after success
 
-                    st.success(f"✅ Order Booked! Total: Rs.{grand_total:,.2f}")
-                    
-                    # Text/HTML Invoice Generator (Error-Free Alternative)
-                    invoice_html = f"""
-                    <div style="border: 2px solid #333; padding: 20px; font-family: Arial; background-color: #f9f9f9; color: #000;">
-                        <h2 style="text-align: center; margin: 0;">SHIVRAJ UNITRADE</h2>
-                        <p style="text-align: center; margin: 5px 0 15px 0; font-size: 14px;">Merchant Exporter India</p>
-                        <hr>
-                        <p><b>Date:</b> {timestamp}</p>
-                        <p><b>Customer Name:</b> {buyer_name}</p>
-                        <p><b>Location:</b> {location}</p>
-                        <br>
-                        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                            <tr style="background-color: #ddd;">
-                                <th style="border: 1px solid #999; padding: 8px; text-align: left;">Product Name</th>
-                                <th style="border: 1px solid #999; padding: 8px; text-align: center;">Qty (KG)</th>
-                                <th style="border: 1px solid #999; padding: 8px; text-align: right;">Price/kg</th>
-                                <th style="border: 1px solid #999; padding: 8px; text-align: right;">Total</th>
-                            </tr>
-                    """
-                    for it in log_entry['items']:
-                        row_total = it['price'] * it['qty']
-                        invoice_html += f"""
-                            <tr>
-                                <td style="border: 1px solid #999; padding: 6px;">{it['name']}</td>
-                                <td style="border: 1px solid #999; padding: 6px; text-align: center;">{it['qty']}</td>
-                                <td style="border: 1px solid #999; padding: 6px; text-align: right;">{it['price']}</td>
-                                <td style="border: 1px solid #999; padding: 6px; text-align: right;">{row_total:,.2f}</td>
-                            </tr>
-                        """
-                    invoice_html += f"""
-                        </table>
-                        <br>
-                        <h3 style="text-align: right; margin: 5px 0;">Grand Total: Rs. {grand_total:,.2f}</h3>
-                        <p style="text-align: right; font-size: 12px; margin: 0;">In Words: {number_to_words(grand_total)}</p>
-                        <p style="text-align: right; font-size: 14px; margin: 5px 0;"><b>Payment Details:</b> {invoice_payment_desc}</p>
-                        <hr>
-                        <p style="text-align: center; font-size: 12px; margin-top: 15px;">Thank you for your business! 🙏</p>
-                    </div>
-                    """
-
-                    st.markdown("### 📄 Generated Invoice Preview:")
-                    st.markdown(invoice_html, unsafe_allow_html=True)
-
-                    st.download_button(
-                        label="📥 Download Bill (HTML Format)",
-                        data=invoice_html,
-                        file_name=f"Invoice_{buyer_name}.html",
-                        mime="text/html"
-                    )
-
-                    if buyer_phone:
-                        encoded_msg = urllib.parse.quote(whatsapp_msg)
-                        wa_url = f"https://wa.me/{buyer_phone}?text={encoded_msg}"
-                        st.markdown(f"### 📲 [Send on WhatsApp]({wa_url})", unsafe_allow_html=True)
-
+                    st.success(f"✅ Order Booked Successfully! Grand Total: Rs.{grand_total:,.2f}")
                     st.balloons()
-                    st.rerun()
 
 # --- MAIN DASHBOARD AREA ---
 st.title("🌐 SHIVRAJ UNITRADE")
@@ -327,7 +271,7 @@ with tab2:
     if not st.session_state.export_logs:
         st.info("No orders recorded yet.")
     else:
-        search_query = st.text_input("🔍 Search Customer or Location:").strip().lower()
+        search_query = st.text_input("🔍 Search Customer or Location:", key="search_txn").strip().lower()
         filtered_logs = [
             log for log in st.session_state.export_logs 
             if search_query in log['buyer'].lower() or search_query in log['location'].lower()
@@ -424,15 +368,13 @@ with tab5:
 
         with col_add:
             st.markdown("### ➕ Add New Product")
-            with st.form("add_product_form", clear_on_submit=True):
-                new_id = st.text_input("Product ID (e.g., EX104):").strip().upper()
-                new_name = st.text_input("Product Name:").strip()
-                new_cost = st.number_input("Cost Price per KG (Rs.) [Hidden from Customer]:", min_value=1, value=300)
-                new_price = st.number_input("Selling Price per KG (Rs.):", min_value=1, value=500)
-                new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000)
-                add_btn = st.form_submit_button("Add Product to Warehouse")
-
-            if add_btn:
+            new_id = st.text_input("Product ID (e.g., EX104):", key="new_p_id").strip().upper()
+            new_name = st.text_input("Product Name:", key="new_p_name").strip()
+            new_cost = st.number_input("Cost Price per KG (Rs.) [Hidden from Customer]:", min_value=1, value=300, key="new_p_cost")
+            new_price = st.number_input("Selling Price per KG (Rs.):", min_value=1, value=500, key="new_p_price")
+            new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000, key="new_p_stock")
+            
+            if st.button("Add Product to Warehouse", key="btn_add_prod"):
                 if not new_id or not new_name:
                     st.error("❌ Please provide both Product ID and Name!")
                 elif new_id in st.session_state.products:
@@ -452,13 +394,11 @@ with tab5:
             if not st.session_state.products:
                 st.info("No products available to remove.")
             else:
-                with st.form("remove_password_protected_form"):
-                    rem_options = {f"{p['name']} (ID: {pid})": pid for pid, p in st.session_state.products.items()}
-                    rem_selected = st.selectbox("Select Product to Delete:", list(rem_options.keys()))
-                    rem_pid = rem_options[rem_selected]
-                    remove_btn = st.form_submit_button("Delete Selected Product")
+                rem_options = {f"{p['name']} (ID: {pid})": pid for pid, p in st.session_state.products.items()}
+                rem_selected = st.selectbox("Select Product to Delete:", list(rem_options.keys()), key="rem_p_sel")
+                rem_pid = rem_options[rem_selected]
 
-                if remove_btn:
+                if st.button("Delete Selected Product", key="btn_rem_prod"):
                     deleted_name = st.session_state.products[rem_pid]['name']
                     del st.session_state.products[rem_pid]
                     st.success(f"🗑️ Product '{deleted_name}' deleted successfully!")
