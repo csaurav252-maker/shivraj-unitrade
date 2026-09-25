@@ -6,14 +6,13 @@ import sqlite3
 import os
 import json
 
-# --- DATABASE SETUP (Original database restored to keep past data safe) ---
+# --- DATABASE SETUP ---
 DB_FILE = "shivraj_unitrade.db"
 
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Products Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS products (
             pid TEXT PRIMARY KEY,
@@ -24,7 +23,6 @@ def init_db():
         )
     ''')
     
-    # Transactions / Export Logs Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS export_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +41,6 @@ def init_db():
         )
     ''')
 
-    # Expenses Table for True Net Profit Tracking
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -344,7 +341,7 @@ with col_logo:
     if os.path.exists("s_.png"):
         st.image("s_.png", width=110)
     else:
-        st.markdown("🟢 **[Logo Not Found]**")
+        st.error("⚠️ 's_.png' file not found in current folder!")
 with col_title:
     st.title("SHIVRAJ UNITRADE")
     st.markdown("### *Enterprise Merchant Exporter Management System*")
@@ -429,7 +426,6 @@ with tab2:
                 st.markdown(f"**{i}. Date:** `{log['time']}` | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
                 st.markdown(f"💰 **Total Invoice:** ₹{log['amount']:,.2f} | 💵 **Total Paid:** ₹{log['paid_amount']:,.2f} | 🔴 **Current Balance Due:** **₹{log['balance_due']:,.2f}**")
                 
-                # Expandable Details & Printable Commercial Invoice Generator
                 with st.expander("📋 View Detailed Ledger Breakdown & Commercial Invoice"):
                     st.markdown("### **SHIVRAJ UNITRADE - COMMERCIAL INVOICE**")
                     st.text(f"Date & Time: {log['time']}")
