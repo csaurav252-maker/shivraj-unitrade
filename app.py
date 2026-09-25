@@ -44,30 +44,44 @@ with st.sidebar:
             buyer_phone = st.text_input("WhatsApp Number:").strip()
             location = st.text_input("Destination City:").strip()
             
-            payment_mode = st.selectbox("Payment Mode:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Split (Cash + UPI)"])
+            # सर्व पेमेंट ऑप्शन्स दिले आहेत
+            payment_options = ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)", "Dual Payment (कोणतेही दोन पर्याय)"]
+            payment_mode = st.selectbox("Payment Mode:", payment_options)
             
-            cash_part = 0.0
-            upi_part = 0.0
+            p1_type = "Cash"
+            p1_amt = 0.0
+            p2_type = "UPI / Online"
+            p2_amt = 0.0
 
-            if payment_mode == "Split (Cash + UPI)":
-                cs1, cs2 = st.columns(2)
-                with cs1:
-                    cash_part = st.number_input("Cash (₹):", min_value=0.0, value=0.0)
-                with cs2:
-                    upi_part = st.number_input("UPI (₹):", min_value=0.0, value=0.0)
+            if payment_mode == "Dual Payment (कोणतेही दोन पर्याय)":
+                st.markdown("---")
+                st.write("🔄 **पहिले पेमेंट:**")
+                c1, c2 = st.columns(2)
+                with c1:
+                    p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=0)
+                with c2:
+                    p1_amt = st.number_input("Amount 1 (₹):", min_value=0.0, value=0.0, key="amt1")
+
+                st.write("🔄 **दुसरे पेमेंट:**")
+                c3, c4 = st.columns(2)
+                with c3:
+                    p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque", "Credit (Udhar)"], index=1)
+                with c4:
+                    p2_amt = st.number_input("Amount 2 (₹):", min_value=0.0, value=0.0, key="amt2")
+                st.markdown("---")
 
             checkout_btn = st.form_submit_button("Confirm Order & Generate Bill")
 
         if checkout_btn:
             if not buyer_name or not location:
-                st.error("❌ Fill customer name and location!")
+                st.error("❌ कृपया ग्राहक नाव आणि लोकेशन (City) भरा!")
             elif not st.session_state.cart:
-                st.error("❌ Cart is empty!")
+                st.error("❌ तुमची कार्ट रिकामी आहे!")
             else:
                 stock_error = False
                 for c_item in st.session_state.cart:
                     if c_item['qty'] > st.session_state.products[c_item['pid']]['stock_kg']:
-                        st.error(f"❌ Low stock for {c_item['name']}!")
+                        st.error(f"❌ {c_item['name']} साठी पुरेसा स्टॉक उपलब्ध नाही!")
                         stock_error = True
                         break
 
@@ -84,10 +98,10 @@ with st.sidebar:
                     balance_due = 0.0
                     final_payment_desc = payment_mode
 
-                    if payment_mode == "Split (Cash + UPI)":
-                        paid_so_far = cash_part + upi_part
-                        balance_due = max(0.0, grand_total - paid_so_far)
-                        final_payment_desc = f"Split (Cash: ₹{cash_part:,.2f}, UPI: ₹{upi_part:,.2f}) | Due: ₹{balance_due:,.2f}"
+                    if payment_mode == "Dual Payment (कोणतेही दोन पर्याय)":
+                        total_paid_now = p1_amt + p2_amt
+                        balance_due = max(0.0, grand_total - total_paid_now)
+                        final_payment_desc = f"Dual ({p1_type}: ₹{p1_amt:,.2f} + {p2_type}: ₹{p2_amt:,.2f}) | Due: ₹{balance_due:,.2f}"
                     elif payment_mode == "Credit (Udhar)":
                         balance_due = grand_total
                         final_payment_desc = f"Credit (Full Udhar) | Due: ₹{balance_due:,.2f}"
@@ -134,7 +148,7 @@ with st.sidebar:
 
                     st.success(f"✅ Order Booked! Total: ₹{grand_total:,.2f}")
                     
-                    # PDF Generation (कस्टमरच्या बिलामध्ये प्रॉफिट कुठेही दिसणार नाही)
+                    # PDF Generation (कस्टमरच्या बिलामध्ये प्रॉफिट कुठेही दिसत नाही)
                     pdf = FPDF()
                     pdf.add_page()
                     pdf.set_font("Arial", size=12)
@@ -229,7 +243,6 @@ with tab1:
     if not st.session_state.products:
         st.warning("No products available in the warehouse currently.")
     else:
-        # प्रॉडक्ट्स सुंदर ग्रिड/कॉलम फॉरमॅटमध्ये दाखवणे
         cols = st.columns(3)
         for i, (pid, p) in enumerate(st.session_state.products.items()):
             col_idx = i % 3
@@ -330,7 +343,6 @@ with tab4:
     st.subheader("🔒 Admin Restricted Area: Profit Dashboard")
     admin_pass_1 = st.text_input("Enter Admin Password to View Profit:", type="password", key="pass_profit")
     
-    # डीफॉल्ट पासवर्ड 'admin123' सेट केला आहे, तू हवा तो बदलू शकतोस
     if admin_pass_1 == "admin123":
         st.success("✅ Access Granted! Confidential Profit Analytics:")
         total_net_profit = sum(log.get('profit', 0) for log in st.session_state.export_logs)
