@@ -6,7 +6,7 @@ import sqlite3
 import os
 import json
 
-# --- DATABASE SETUP (Restored to original to keep all your past data & transactions safe) ---
+# --- DATABASE SETUP (Original database restored to keep past data safe) ---
 DB_FILE = "shivraj_unitrade.db"
 
 def init_db():
@@ -338,13 +338,13 @@ with st.sidebar:
                     st.session_state.cart = []
                     st.balloons()
 
-# --- MAIN DASHBOARD HEADER WITH REAL LOGO IMAGE (`s_.png`) ---
+# --- MAIN DASHBOARD HEADER WITH EXACT LOGO IMAGE (`s_.png`) ---
 col_logo, col_title = st.columns([1, 6])
 with col_logo:
     if os.path.exists("s_.png"):
-        st.image("s_.png", width=100)
+        st.image("s_.png", width=110)
     else:
-        st.markdown("🟢 **[SU Logo Missing]**")
+        st.markdown("🟢 **[Logo Not Found]**")
 with col_title:
     st.title("SHIVRAJ UNITRADE")
     st.markdown("### *Enterprise Merchant Exporter Management System*")
