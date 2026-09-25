@@ -2,8 +2,13 @@ import datetime
 import urllib.parse
 import streamlit as st
 import pandas as pd
+import os
 
-st.set_page_config(page_title="Shivraj Unitrade | Merchant Exporter", page_icon="🌐", layout="wide")
+# Check if logo file exists, otherwise handle gracefully
+logo_path = "s_.png"
+page_icon_val = logo_path if os.path.exists(logo_path) else "🌐"
+
+st.set_page_config(page_title="Shivraj Unitrade | Merchant Exporter", page_icon=page_icon_val, layout="wide")
 
 # Helper function to convert number to English words
 def number_to_words(num):
@@ -205,8 +210,15 @@ with st.sidebar:
                     st.balloons()
 
 # --- MAIN DASHBOARD AREA ---
-st.title("🌐 SHIVRAJ UNITRADE")
-st.markdown("### *Merchant Exporter India*")
+col_logo, col_title = st.columns([1, 6])
+with col_logo:
+    if os.path.exists("s_.png"):
+        st.image("s_.png", width=100)
+    else:
+        st.markdown("🟢 **[SU Logo]**")
+with col_title:
+    st.title("SHIVRAJ UNITRADE")
+    st.markdown("### *Merchant Exporter India*")
 
 st.image(
     "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80",
@@ -335,6 +347,28 @@ with tab2:
                 * **Grand Total:** Rs.{log['amount']:,.2f} | **Paid:** Rs.{log['paid_amount']:,.2f} | **📉 Credit Due:** **Rs.{log['balance_due']:,.2f}**  
                 * **Payment Mode:** `{log['payment']}`  
                 """)
+                
+                # --- NEW FEATURE: INDIVIDUAL TRANSACTION DOWNLOAD BUTTON ---
+                single_df = pd.DataFrame([{
+                    "Time": log['time'],
+                    "Customer": log['buyer'],
+                    "Phone": log.get('phone', ''),
+                    "Location": log['location'],
+                    "Amount": log['amount'],
+                    "Paid": log['paid_amount'],
+                    "Credit Due": log['balance_due'],
+                    "Payment Mode": log['payment'],
+                    "Status": log['status']
+                }])
+                single_csv = single_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label=f"💾 Download This Transaction ({log['buyer']}) as Excel",
+                    data=single_csv,
+                    file_name=f"invoice_{log['buyer'].replace(' ', '_')}_{log['id']}.csv",
+                    mime='text/csv',
+                    key=f"dl_single_{log['id']}"
+                )
+                st.markdown("---")
                 
                 c_wa, c_del = st.columns([2, 1])
                 with c_wa:
