@@ -427,8 +427,7 @@ with tab3:
                     st.markdown(f"🔴 **Current Due Balance: Rs.{log['balance_due']:,.2f}**")
                 
                 with c_action:
-                    # Partial Payment Input
-                    partial_pay = st.number_input("jama kelele paise (Enter amount):", min_value=0.0, max_value=float(log['balance_due']), value=0.0, key=f"partial_{log['id']}")
+                    partial_pay = st.number_input("Jama kelele paise (Enter amount):", min_value=0.0, max_value=float(log['balance_due']), value=0.0, key=f"partial_{log['id']}")
                     
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
@@ -453,7 +452,8 @@ with tab3:
 
                 if log.get('phone'):
                     rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit due of Rs. {log['balance_due']:,.2f}. Thank you!"
-                    st.markdown(f"🔔 [Send WhatsApp Reminder]({https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)}})".replace("{", "").replace("}", ""))
+                    rem_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)}"
+                    st.markdown(f"🔔 [Send WhatsApp Reminder]({rem_url})")
 
 with tab4:
     st.subheader("🔒 Profit Dashboard")
