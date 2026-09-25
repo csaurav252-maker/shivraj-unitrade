@@ -95,14 +95,14 @@ with st.sidebar:
 
         if payment_mode == "Dual Payment (Two Modes)":
             st.markdown("---")
-            st.write("🔄 **Payment 1:**")
+            st.write("🔄 **Payment 1 (आता दिलेली रक्कम):**")
             c1, c2 = st.columns(2)
             with c1:
                 p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Online", "Cheque"], index=0, key="d_t1")
             with c2:
                 p1_amt = float(st.number_input("Amount 1 (Rs.):", min_value=0.0, max_value=float(current_grand_total), value=0.0, step=10.0, key="amt1"))
             
-            st.write("🔄 **Payment 2:**")
+            st.write("🔄 **Payment 2 (उरलेली रक्कम किंवा दुसरी पद्धत):**")
             c3, c4 = st.columns(2)
             with c3:
                 p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Online", "Cheque"], index=1, key="d_t2")
@@ -110,25 +110,27 @@ with st.sidebar:
                 p2_amt = float(st.number_input("Amount 2 (Rs.):", min_value=0.0, max_value=float(current_grand_total - p1_amt), value=0.0, step=10.0, key="amt2"))
             
             paid_amount = float(p1_amt + p2_amt)
-            st.markdown(f"**Total Paid Now:** Rs.{paid_amount:,.2f}")
+            st.markdown(f"**Total Paid Now (एकूण भरलेले):** Rs.{paid_amount:,.2f}")
             st.markdown("---")
         else:
-            paid_amount = float(st.number_input("Amount Paid Now (Rs.):", min_value=0.0, max_value=float(current_grand_total), value=float(current_grand_total), step=10.0, key="single_paid_amt"))
+            # येथे तुम्ही अर्धी रक्कम (उदा. 50% किंवा हवी ती रक्कम) टाकू शकता
+            paid_amount = float(st.number_input("Amount Paid Now (आता किती दिले?):", min_value=0.0, max_value=float(current_grand_total), value=float(current_grand_total), step=10.0, key="single_paid_amt"))
             if paid_amount < current_grand_total:
-                st.caption(f"⚠️ Remaining amount will go to **Credit / Udhar**.")
+                st.caption(f"⚠️ उरलेली रक्कम आपोआप **Credit (उधार बाकी)** म्हणून जोडली जाईल.")
 
+        # आपोआप Credit / Udhar मोजले जाईल
         credit_amount = float(max(0.0, current_grand_total - paid_amount))
 
         if st.button("Confirm Order & Generate Bill", type="primary", use_container_width=True):
             if not buyer_name or not location:
-                st.error("❌ Please fill customer name and location!")
+                st.error("❌ कृपया ग्राहकाचे नाव आणि पत्ता भरा!")
             elif not st.session_state.cart:
-                st.error("❌ Your cart is empty!")
+                st.error("❌ तुमची कार्टी रिकामी आहे!")
             else:
                 stock_error = False
                 for c_item in st.session_state.cart:
                     if float(c_item['qty']) > float(st.session_state.products[c_item['pid']]['stock_kg']):
-                        st.error(f"❌ Not enough stock for {c_item['name']}!")
+                        st.error(f"❌ {c_item['name']} साठी पुरेसा स्टॉक उपलब्ध नाही!")
                         stock_error = True
                         break
 
@@ -144,7 +146,7 @@ with st.sidebar:
                     if payment_mode == "Dual Payment (Two Modes)":
                         final_payment_desc = f"Dual ({p1_type}: Rs.{p1_amt:,.2f} + {p2_type}: Rs.{p2_amt:,.2f})"
                     else:
-                        final_payment_desc = f"{payment_mode} (Paid: Rs.{paid_amount:,.2f})"
+                        final_payment_desc = f"{payment_mode} (Paid Now: Rs.{paid_amount:,.2f})"
 
                     for c_item in st.session_state.cart:
                         st.session_state.products[c_item['pid']]['stock_kg'] -= float(c_item['qty'])
@@ -152,7 +154,7 @@ with st.sidebar:
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
                     items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ Rs.{it['price']})" for it in st.session_state.cart])
 
-                    credit_section_msg = f"🔴 Credit / Due Amount: Rs.{credit_amount:,.2f}\n" if credit_amount > 0 else "✅ Payment Status: Fully Paid\n"
+                    credit_section_msg = f"🔴 Credit / Udhar Balance (बाकी): Rs.{credit_amount:,.2f}\n" if credit_amount > 0 else "✅ Payment Status: Fully Paid (पूर्ण पैसे दिले)\n"
 
                     whatsapp_msg = (
                         f"🌐 *SHIVRAJ UNITRADE - INVOICE* 🌐\n"
@@ -164,7 +166,7 @@ with st.sidebar:
                         f"📦 Products:\n{items_summary_str}\n"
                         f"--------------------------------\n"
                         f"💰 Grand Total: Rs.{grand_total:,.2f}\n"
-                        f"💵 Paid Amount: Rs.{paid_amount:,.2f}\n"
+                        f"💵 Paid Amount (दिले): Rs.{paid_amount:,.2f}\n"
                         f"{credit_section_msg}"
                         f"💳 Payment Mode: {final_payment_desc}\n"
                         f"--------------------------------\n"
@@ -189,7 +191,7 @@ with st.sidebar:
                     st.session_state.export_logs.append(log_entry)
                     st.session_state.cart = [] 
 
-                    st.success(f"✅ Order Booked Successfully! Grand Total: Rs.{grand_total:,.2f} | Credit Due: Rs.{credit_amount:,.2f}")
+                    st.success(f"✅ ऑर्डर यशस्वी झाली! एकूण: Rs.{grand_total:,.2f} | उधार बाकी (Credit): Rs.{credit_amount:,.2f}")
                     st.balloons()
 
 # --- MAIN DASHBOARD AREA ---
@@ -214,7 +216,7 @@ m1, m2, m3, m4 = st.columns(4)
 m1.metric("💰 Total Revenue", f"Rs.{total_revenue:,.2f}")
 m2.metric("📦 Total Orders", f"{total_orders_count}")
 m3.metric("⚖️ Stock Left", f"{total_stock_qty:,.1f} KG")
-m4.metric("📉 Total Credit (Udhar)", f"Rs.{total_pending_credit:,.2f}", delta_color="inverse")
+m4.metric("📉 Total Credit (एकूण उधार)", f"Rs.{total_pending_credit:,.2f}", delta_color="inverse")
 
 st.divider()
 
@@ -222,7 +224,7 @@ st.divider()
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📦 Product Catalog & Store", 
     "📜 Transaction Logs",
-    "📉 Credit Ledger",
+    "📉 Credit Ledger (उधार खाते)",
     "📈 Profit Dashboard (Admin Locked)",
     "⚙️ Inventory Management (Admin Locked)"
 ])
@@ -284,7 +286,7 @@ with tab2:
             **{i}. Timestamp:** {log['time']} {status_color} Status: **{log['status']}**  
             * **Customer:** {log['buyer']} ({log['location']}) — *Ph: {log.get('phone', 'N/A')}*  
             * **Products:** {items_str}  
-            * **Grand Total:** Rs.{log['amount']:,.2f} | **Paid:** Rs.{log['paid_amount']:,.2f} | **📉 Credit Due:** **Rs.{log['balance_due']:,.2f}**  
+            * **Grand Total:** Rs.{log['amount']:,.2f} | **Paid (दिले):** Rs.{log['paid_amount']:,.2f} | **📉 Credit Due (उधार):** **Rs.{log['balance_due']:,.2f}**  
             * **Payment Mode:** `{log['payment']}`  
             """)
             if log.get('phone'):
@@ -295,13 +297,13 @@ with tab2:
 
 # --- TAB 3: CREDIT LEDGER ---
 with tab3:
-    st.subheader("📉 Credit / Pending Dues Ledger")
+    st.subheader("📉 Credit / Pending Dues Ledger (उधार खाते)")
     pending_logs = [log for log in st.session_state.export_logs if log['balance_due'] > 0]
 
     if not pending_logs:
-        st.success("🎉 Great! No credit balance pending from any customer right now.")
+        st.success("🎉 Great! सध्या कोणाचेही पैसे उधार (Credit) बाकी नाहीत.")
     else:
-        st.warning(f"Total **{len(pending_logs)}** customers have active credit balances.")
+        st.warning(f"एकूण **{len(pending_logs)}** ग्राहकांचे पैसे उधार बाकी आहेत.")
         for log in pending_logs:
             col_info, col_action = st.columns([3, 1])
             with col_info:
@@ -310,8 +312,8 @@ with tab3:
                 👤 **Customer:** {log['buyer']}  
                 📍 **Location:** {log['location']} | 📱 **Phone:** {log.get('phone', 'N/A')}  
                 📦 **Products:** {items_str}  
-                💰 **Grand Total:** Rs.{log['amount']:,.2f} | 💵 **Paid:** Rs.{log['paid_amount']:,.2f}  
-                🔴 **Active Credit Due:** **Rs.{log['balance_due']:,.2f}**  
+                💰 **Grand Total:** Rs.{log['amount']:,.2f} | 💵 **Paid (आधी दिलेले):** Rs.{log['paid_amount']:,.2f}  
+                🔴 **Active Credit Due (बाकी रक्कम):** **Rs.{log['balance_due']:,.2f}**  
                 📅 **Order Date:** {log['time']}  
                 """)
             with col_action:
@@ -321,7 +323,7 @@ with tab3:
                     log['balance_due'] = 0.0
                     log['status'] = "Paid (Cleared)"
                     log['payment'] += " -> [Credit Fully Settled]"
-                    st.success("Credit payment received! Ledger updated.")
+                    st.success("उधार रक्कम जमा झाली! खाते अपडेट केले.")
                     st.rerun()
                 
                 if log.get('phone'):
@@ -355,9 +357,9 @@ with tab4:
                 """)
                 st.markdown("---")
     elif admin_pass_1 != "":
-        st.error("❌ Incorrect Password! Only Admin can view profits.")
+        st.error("❌ चुकिचा पासवर्ड! फक्त ॲडमिन नफा पाहू शकतात.")
     else:
-        st.info("🔒 Please enter the password above to view confidential profit records.")
+        st.info("🔒 नफा पाहण्यासाठी वरील बॉक्समध्ये पासवर्ड प्रविष्ट करा.")
 
 # --- TAB 5: INVENTORY MANAGEMENT (PASSWORD PROTECTED) ---
 with tab5:
@@ -365,22 +367,22 @@ with tab5:
     admin_pass_2 = st.text_input("Enter Admin Password to Manage Inventory:", type="password", key="pass_inventory")
 
     if admin_pass_2 == "admin123":
-        st.success("✅ Access Granted! You can now add or remove products.")
+        st.success("✅ Access Granted! तुम्ही आता नवीन प्रॉडक्ट जोडू किंवा काढू शकता.")
         col_add, col_rem = st.columns(2)
 
         with col_add:
             st.markdown("### ➕ Add New Product")
             new_id = st.text_input("Product ID (e.g., EX104):", key="new_p_id").strip().upper()
             new_name = st.text_input("Product Name:", key="new_p_name").strip()
-            new_cost = float(st.number_input("Cost Price per KG (Rs.) [Hidden from Customer]:", min_value=1.0, value=300.0, key="new_p_cost"))
+            new_cost = float(st.number_input("Cost Price per KG (Rs.) [ग्राहकाला दिसणार नाही]:", min_value=1.0, value=300.0, key="new_p_cost"))
             new_price = float(st.number_input("Selling Price per KG (Rs.):", min_value=1.0, value=500.0, key="new_p_price"))
             new_stock = float(st.number_input("Initial Stock (in KG):", min_value=1.0, value=1000.0, key="new_p_stock"))
             
             if st.button("Add Product to Warehouse", key="btn_add_prod"):
                 if not new_id or not new_name:
-                    st.error("❌ Please provide both Product ID and Name!")
+                    st.error("❌ कृपया प्रॉडक्ट आयडी आणि नाव दोन्ही भरा!")
                 elif new_id in st.session_state.products:
-                    st.error("❌ This Product ID already exists!")
+                    st.error("❌ हा प्रॉडक्ट आयडी आधीपासून अस्तित्वात आहे!")
                 else:
                     st.session_state.products[new_id] = {
                         "name": new_name,
@@ -388,24 +390,24 @@ with tab5:
                         "price_per_kg": float(new_price),
                         "stock_kg": float(new_stock)
                     }
-                    st.success(f"✅ Product '{new_name}' added successfully!")
+                    st.success(f"✅ प्रॉडक्ट '{new_name}' यशस्वीरित्या जोडले गेले!")
                     st.rerun()
 
         with col_rem:
             st.markdown("### ❌ Remove Existing Product")
             if not st.session_state.products:
-                st.info("No products available to remove.")
+                st.info("काढण्यासाठी कोणतेही प्रॉडक्ट उपलब्ध नाही.")
             else:
                 rem_options = {f"{p['name']} (ID: {pid})": pid for pid, p in st.session_state.products.items()}
-                rem_selected = st.selectbox("Select Product to Delete:", list(rem_options.keys()), key="rem_p_sel")
+                rem_selected = st.selectbox("डिलिट करण्यासाठी प्रॉडक्ट निवडा:", list(rem_options.keys()), key="rem_p_sel")
                 rem_pid = rem_options[rem_selected]
 
                 if st.button("Delete Selected Product", key="btn_rem_prod"):
                     deleted_name = st.session_state.products[rem_pid]['name']
                     del st.session_state.products[rem_pid]
-                    st.success(f"🗑️ Product '{deleted_name}' deleted successfully!")
+                    st.success(f"🗑️ प्रॉडक्ट '{deleted_name}' काढून टाकले गेले!")
                     st.rerun()
     elif admin_pass_2 != "":
-        st.error("❌ Incorrect Password!")
+        st.error("❌ चुकिचा पासवर्ड!")
     else:
-        st.info("🔒 Please enter the password above to unlock inventory controls.")
+        st.info("🔒 इन्व्हेंटरी कंट्रोल उघडण्यासाठी वरील पासवर्ड टाका.")
