@@ -7,10 +7,11 @@ st.set_page_config(page_title="Shivraj Unitrade | Merchant Exporter", page_icon=
 
 # Initialize Session State
 if "products" not in st.session_state:
+    # प्रत्येक प्रॉडक्टमध्ये 'cost_price' (खरेदी किंमत) ॲड केली आहे नफा मोजण्यासाठी
     st.session_state.products = {
-        "EX101": {"name": "Onion Powder (Premium)", "price_per_kg": 350, "stock_kg": 5000},
-        "EX102": {"name": "Garlic Powder (Premium)", "price_per_kg": 450, "stock_kg": 3500},
-        "EX103": {"name": "Mix Spices Blend (Garam Masala)", "price_per_kg": 600, "stock_kg": 2000},
+        "EX101": {"name": "Onion Powder (Premium)", "cost_price": 250, "price_per_kg": 350, "stock_kg": 5000},
+        "EX102": {"name": "Garlic Powder (Premium)", "cost_price": 320, "price_per_kg": 450, "stock_kg": 3500},
+        "EX103": {"name": "Mix Spices Blend (Garam Masala)", "cost_price": 420, "price_per_kg": 600, "stock_kg": 2000},
     }
 if "export_logs" not in st.session_state:
     st.session_state.export_logs = []
@@ -18,7 +19,7 @@ if "export_logs" not in st.session_state:
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
-# --- SIDEBAR: SHOPPING CART & QUICK CHECKOUT (Easy Scrolling) ---
+# --- SIDEBAR: SHOPPING CART & QUICK CHECKOUT ---
 with st.sidebar:
     st.header("🛒 Live Shopping Cart")
     
@@ -73,6 +74,14 @@ with st.sidebar:
 
                 if not stock_error:
                     grand_total = sum(item['price'] * item['qty'] for item in st.session_state.cart)
+                    
+                    # एकूण नफा मोजणी (Total Profit Calculation for Admin)
+                    total_order_profit = 0
+                    for c_item in st.session_state.cart:
+                        p_info = st.session_state.products[c_item['pid']]
+                        item_profit = (c_item['price'] - p_info['cost_price']) * c_item['qty']
+                        total_order_profit += item_profit
+
                     balance_due = 0.0
                     final_payment_desc = payment_mode
 
@@ -115,6 +124,7 @@ with st.sidebar:
                         "location": location,
                         "items": list(st.session_state.cart),
                         "amount": grand_total,
+                        "profit": total_order_profit,  #फक्त ॲडमीनसाठी रेकॉर्ड
                         "balance_due": balance_due,
                         "payment": final_payment_desc,
                         "msg": whatsapp_msg,
@@ -162,7 +172,7 @@ with st.sidebar:
                     pdf.set_font("Arial", size=10)
                     pdf.cell(200, 8, txt="Thank you for your business!", ln=True, align="C")
                     
-                    pdf_bytes = pdf.output(dest='S').encode('latin1')
+                    pdf_bytes = pdf.output()
 
                     st.download_button(
                         label="📄 Download PDF Invoice",
@@ -205,11 +215,12 @@ m4.metric("⚠️ Pending Udhar", f"₹{total_pending_udhar:,.2f}", delta_color=
 
 st.divider()
 
-# Tabs Setup
-tab1, tab2, tab3, tab4 = st.tabs([
+# --- Separate Tabs for Everything ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📦 Live Stock & Add to Cart", 
     "📜 Transaction Logs",
     "⚠️ Udhar Ledger",
+    "📈 Profit Dashboard (Admin Only)",
     "⚙️ Inventory Management"
 ])
 
@@ -222,7 +233,7 @@ with tab1:
         for pid, p in st.session_state.products.items():
             col_info, col_btn = st.columns([3, 1])
             with col_info:
-                st.info(f"**{p['name']}** (ID: `{pid}`) | **Rate:** ₹{p['price_per_kg']}/KG | **Stock Left:** **{p['stock_kg']} KG**")
+                st.info(f"**{p['name']}** (ID: `{pid}`) | **Selling Rate:** ₹{p['price_per_kg']}/KG | **Stock Left:** **{p['stock_kg']} KG**")
             with col_btn:
                 qty_to_add = st.number_input("Qty (KG)", min_value=1, value=50, step=10, key=f"qty_{pid}")
                 if st.button("Add to Cart 🛒", key=f"add_{pid}"):
@@ -309,8 +320,31 @@ with tab3:
                     st.markdown(f"🔔 [Send Reminder]({rem_url})")
             st.markdown("---")
 
-# --- TAB 4: INVENTORY MANAGEMENT ---
+# --- TAB 4: PROFIT DASHBOARD (ADMIN ONLY) ---
 with tab4:
+    st.subheader("📈 Secret Profit Dashboard (Only for Admin)")
+    st.info("⚠️ This tab is strictly confidential and tracks your net earnings. Customers cannot see this.")
+
+    total_net_profit = sum(log.get('profit', 0) for log in st.session_state.export_logs)
+    
+    st.metric("🔥 Total Net Profit Earned", f"₹{total_net_profit:,.2f}")
+    st.divider()
+
+    st.markdown("### Order-wise Profit Breakdown")
+    if not st.session_state.export_logs:
+        st.info("No orders yet to calculate profit.")
+    else:
+        for i, log in enumerate(reversed(st.session_state.export_logs), 1):
+            order_profit = log.get('profit', 0)
+            st.markdown(f"""
+            **{i}. Order Date:** {log['time']} | **Customer:** {log['buyer']}  
+            * **Total Bill Amount:** ₹{log['amount']:,.2f}  
+            * 🟢 **Net Profit from this order:** **₹{order_profit:,.2f}**  
+            """)
+            st.markdown("---")
+
+# --- TAB 5: INVENTORY MANAGEMENT ---
+with tab5:
     st.subheader("Manage Products (Add or Remove)")
     col_add, col_rem = st.columns(2)
 
@@ -319,7 +353,8 @@ with tab4:
         with st.form("add_product_form", clear_on_submit=True):
             new_id = st.text_input("Product ID (e.g., EX104):").strip().upper()
             new_name = st.text_input("Product Name:").strip()
-            new_price = st.number_input("Price per KG (₹):", min_value=1, value=500)
+            new_cost = st.number_input("Cost Price per KG (₹) [For Profit Calc]:", min_value=1, value=300)
+            new_price = st.number_input("Selling Price per KG (₹):", min_value=1, value=500)
             new_stock = st.number_input("Initial Stock (in KG):", min_value=1, value=1000)
             add_btn = st.form_submit_button("Add Product to Warehouse")
 
@@ -331,6 +366,7 @@ with tab4:
             else:
                 st.session_state.products[new_id] = {
                     "name": new_name,
+                    "cost_price": new_cost,
                     "price_per_kg": new_price,
                     "stock_kg": new_stock
                 }
