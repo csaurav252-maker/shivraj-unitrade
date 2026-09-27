@@ -7,6 +7,11 @@ import json
 from supabase import create_client, Client
 from fpdf import FPDF
 
+# --- STREAMLIT PAGE CONFIG ---
+fn_logo_path = "s_.png"
+page_icon_file = fn_logo_path if os.path.exists(fn_logo_path) else "🌐"
+st.set_page_config(page_title="Shivraj Unitrade | Global Export Management", page_icon=page_icon_file, layout="wide")
+
 # --- SUPABASE CONFIGURATION ---
 SUPABASE_URL = "https://fwlckedxrtkymwqbegos.supabase.co"
 SUPABASE_KEY = "sb_publishable_UJinMiq1Fln8ckiLH0cvlA_2ApxVLLS"
@@ -38,11 +43,6 @@ def seed_default_products():
 
 seed_default_products()
 
-fn_logo_path = "s_.png"
-page_icon_file = fn_logo_path if os.path.exists(fn_logo_path) else "🌐"
-
-st.set_page_config(page_title="Shivraj Unitrade | Global Export Management", page_icon=page_icon_file, layout="wide")
-
 # --- CUSTOM PROFESSIONAL UI STYLING (CSS) ---
 st.markdown("""
     <style>
@@ -73,7 +73,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- DATABASE HELPER FUNCTIONS (Supabase) ---
+# --- DATABASE HELPER FUNCTIONS WITH CACHING (To prevent lag) ---
 def get_db_products():
     if not supabase: return {}
     try:
@@ -115,8 +115,7 @@ def delete_db_product(pid):
 def get_db_logs():
     if not supabase: return []
     try:
-        # नवीन ऑर्डर सर्वात वर दिसावी म्हणून desc=True केले आहे
-        res = supabase.table("export_logs").select("*").order("id", desc=True).execute()
+        res = supabase.table("export_logs").select("*").order("id", desc=False).execute()
         logs = []
         for r in res.data:
             try:
@@ -156,10 +155,10 @@ def insert_db_log(log_data):
             "location": log_data['location'],
             "gstin": log_data.get('gstin', ''),
             "items": json.dumps(log_data['items']), 
-            "amount": float(log_data['amount']), 
-            "paid_amount": float(log_data['paid_amount']),
-            "profit": float(log_data['profit']), 
-            "balance_due": float(log_data['balance_due']), 
+            "amount": log_data['amount'], 
+            "paid_amount": log_data['paid_amount'],
+            "profit": log_data['profit'], 
+            "balance_due": log_data['balance_due'], 
             "payment": log_data['payment'],
             "msg": log_data['msg'], 
             "status": log_data['status']
@@ -329,6 +328,11 @@ def generate_pdf_invoice(log):
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
+# --- FETCH DATA ONCE PER RUN ---
+current_logs = get_db_logs()
+current_prods_main = get_db_products()
+all_expenses = get_db_expenses()
+
 # --- SIDEBAR: LIVE SHOPPING CART & CHECKOUT ---
 with st.sidebar:
     st.header("🛒 Live Order Cart")
@@ -353,8 +357,8 @@ with st.sidebar:
         
         st.subheader("📝 Secure Checkout & Customer Info")
         buyer_name = st.text_input("Customer/Buyer Name:", key="checkout_buyer_name").strip()
-        buyer_email = st.text_input("Customer Email ID (Saved for records):", key="checkout_buyer_email").strip()
-        buyer_phone = st.text_input("WhatsApp Number (with country code):", key="checkout_buyer_phone").strip()
+        buyer_email = st.text_input("Customer Email ID:", key="checkout_buyer_email").strip()
+        buyer_phone = st.text_input("WhatsApp Number:", key="checkout_buyer_phone").strip()
         buyer_gstin = st.text_input("Customer GSTIN (Optional):", key="checkout_buyer_gstin").strip().upper()
         location = st.text_input("Destination Port/City:", key="checkout_location").strip()
         
@@ -362,7 +366,6 @@ with st.sidebar:
         payment_mode = st.selectbox("Payment Mode:", payment_options, key="checkout_payment_mode")
         
         paid_amount = 0.0
-        p1_type, p1_amt, p2_type, p2_amt = "Cash", 0.0, "UPI / Bank Transfer", 0.0
         current_grand_total = float(sum(float(item['price']) * float(item['qty']) for item in st.session_state.cart)) if st.session_state.cart else 0.0
 
         if payment_mode == "Dual Payment Mode":
@@ -389,21 +392,20 @@ with st.sidebar:
                 st.error("❌ Cart is empty!")
             else:
                 stock_error = False
-                current_prods = get_db_products()
                 for c_item in st.session_state.cart:
-                    if float(c_item['qty']) > float(current_prods[c_item['pid']]['stock_kg']):
+                    if float(c_item['qty']) > float(current_prods_main[c_item['pid']]['stock_kg']):
                         st.error(f"❌ Insufficient stock available for {c_item['name']}!")
                         stock_error = True
                         break
 
                 if not stock_error:
                     grand_total = float(current_grand_total)
-                    total_order_profit = sum((float(c_item['price']) - float(current_prods[c_item['pid']]['cost_price'])) * float(c_item['qty']) for c_item in st.session_state.cart)
+                    total_order_profit = sum((float(c_item['price']) - float(current_prods_main[c_item['pid']]['cost_price'])) * float(c_item['qty']) for c_item in st.session_state.cart)
 
                     final_payment_desc = f"Initial: {payment_mode} (Paid: INR {paid_amount:,.2f})"
 
                     for c_item in st.session_state.cart:
-                        update_db_stock(c_item['pid'], current_prods[c_item['pid']]['stock_kg'] - float(c_item['qty']))
+                        update_db_stock(c_item['pid'], current_prods_main[c_item['pid']]['stock_kg'] - float(c_item['qty']))
 
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
                     items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ INR {it['price']})" for it in st.session_state.cart])
@@ -446,7 +448,7 @@ with st.sidebar:
                         })
                         st.success("✅ Order successfully saved to Supabase cloud database!")
                     else:
-                        st.warning("🧪 [Trial Mode] Invoice generated, record not saved to database.")
+                        st.warning("🧪 [Trial Mode] Invoice generated, record not saved.")
 
                     st.session_state.cart = []
                     st.rerun()
@@ -464,10 +466,6 @@ with col_title:
 
 st.image("https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
 st.divider()
-
-current_logs = get_db_logs()
-current_prods_main = get_db_products()
-all_expenses = get_db_expenses()
 
 total_rev = sum(log['amount'] for log in current_logs)
 total_gross_prof = sum(log.get('profit', 0) for log in current_logs)
@@ -493,12 +491,11 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 with tab1:
     st.subheader("Available Warehouse Inventory & Quick Ordering")
-    live_prods = get_db_products()
-    if not live_prods:
+    if not current_prods_main:
         st.warning("No products available in inventory.")
     else:
         cols = st.columns(3)
-        for i, (pid, p) in enumerate(live_prods.items()):
+        for i, (pid, p) in enumerate(current_prods_main.items()):
             with cols[i % 3]:
                 with st.container(border=True):
                     st.markdown(f"### **{p['name']}**")
@@ -506,8 +503,8 @@ with tab1:
                     st.markdown(f"💰 **Rate:** INR {p['price_per_kg']:,.2f} / KG")
                     
                     if p['stock_kg'] <= 500:
-                        st.markdown(f"⚠️ **Stock:** `{p['stock_kg']} KG` *(Low Stock Alert)*")
-                        supplier_msg = f"Hello, stock for {p['name']} (ID: {pid}) has dropped to {p['stock_kg']} KG at Shivraj Unitrade warehouse. Kindly arrange quick restock."
+                        st.markdown(f"⚠️ **Stock:** `{p['stock_kg']} KG` *(Low Stock)*")
+                        supplier_msg = f"Hello, stock for {p['name']} (ID: {pid}) has dropped to {p['stock_kg']} KG at Shivraj Unitrade."
                         sup_url = f"https://wa.me/?text={urllib.parse.quote(supplier_msg)}"
                         st.markdown(f"🚨 [Send WhatsApp Restock Alert]({sup_url})")
                     else:
@@ -529,19 +526,17 @@ with tab1:
 
 with tab2:
     st.subheader("All Sales History, Customer Emails & Printable GST Invoices")
-    logs_data = get_db_logs()
-    if logs_data:
-        st.download_button("📥 Download Transaction History (CSV)", data=pd.DataFrame(logs_data).to_csv(index=False).encode('utf-8'), file_name='merchant_export_history.csv', mime='text/csv')
+    if current_logs:
+        st.download_button("📥 Download Transaction History (CSV)", data=pd.DataFrame(current_logs).to_csv(index=False).encode('utf-8'), file_name='merchant_export_history.csv', mime='text/csv')
         st.markdown("---")
 
-    if not logs_data:
+    if not current_logs:
         st.info("No transaction records found.")
     else:
         search_query = st.text_input("🔍 Search Buyer Name, Email or Destination:", key="search_txn").strip().lower()
-        filtered_logs = [l for l in logs_data if search_query in l['buyer'].lower() or search_query in l['location'].lower() or search_query in l.get('email', '').lower()]
+        filtered_logs = [l for l in current_logs if search_query in l['buyer'].lower() or search_query in l['location'].lower() or search_query in l.get('email', '').lower()]
         
-        # इथे आपण सर्व ऑर्डर्स योग्य क्रमाने दाखवत आहोत (नवीन ऑर्डर वर)
-        for i, log in enumerate(filtered_logs, 1):
+        for i, log in enumerate(reversed(filtered_logs), 1):
             with st.container(border=True):
                 st.markdown(f"**{i}. Date:** `{log['time']}` | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
                 st.markdown(f"📧 **Email:** `{log.get('email', 'N/A')}` | 🏢 **GSTIN:** `{log.get('gstin', 'N/A')}`")
@@ -596,8 +591,8 @@ with tab2:
                         st.error("Authentication Failed: Wrong Admin Password.")
 
 with tab3:
-    st.subheader("📉 Credit Ledger & Accounts Receivable (Partial & Full Payments)")
-    pending_logs = [log for log in get_db_logs() if log['balance_due'] > 0]
+    st.subheader("📉 Credit Ledger & Accounts Receivable")
+    pending_logs = [log for log in current_logs if log['balance_due'] > 0]
     if not pending_logs:
         st.success("🎉 Outstanding accounts clear! No pending credit balances found.")
     else:
@@ -626,7 +621,7 @@ with tab3:
                                 new_pay_desc = log['payment'] + f"\n-> Received INR {partial_pay:,.2f} on {timestamp_now}"
                                 
                                 update_db_credit_payment(log['id'], new_paid_tot, new_due, new_status, new_pay_desc)
-                                st.success(f"Successfully recorded INR {partial_pay:,.2f}! Remaining Balance: INR {new_due:,.2f}")
+                                st.success(f"Successfully recorded INR {partial_pay:,.2f}!")
                                 st.rerun()
                             else:
                                 st.warning("Please enter a valid amount greater than zero.")
@@ -640,7 +635,7 @@ with tab3:
                             st.rerun()
 
                 if log.get('phone'):
-                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit balance of INR {log['balance_due']:,.2f}. Kindly clear dues at your earliest convenience. Thank you!"
+                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit balance of INR {log['balance_due']:,.2f}. Thank you!"
                     rem_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)}"
                     st.markdown(f"🔔 [Send WhatsApp Payment Reminder]({rem_url})")
 
@@ -715,8 +710,7 @@ with tab5:
 
         st.markdown("---")
         st.markdown("### **Existing Inventory Items**")
-        live_inv = get_db_products()
-        for pid, p in live_inv.items():
+        for pid, p in current_prods_main.items():
             with st.container(border=True):
                 st.markdown(f"**[{pid}] {p['name']}**")
                 st.markdown(f"Cost: INR {p['cost_price']} | Price: INR {p['price_per_kg']} | Stock: **{p['stock_kg']} KG**")
