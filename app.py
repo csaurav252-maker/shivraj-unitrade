@@ -124,9 +124,21 @@ def get_db_logs():
                 items_parsed = []
             
             logs.append({
-                "id": r["id"], "time": r["time"], "buyer": r["buyer"], "phone": r["phone"], "location": r["location"],
-                "items": items_parsed, "amount": r["amount"], "paid_amount": r["paid_amount"], "profit": r["profit"],
-                "balance_due": r["balance_due"], "payment": r["payment"], "msg": r["msg"], "status": r["status"]
+                "id": r["id"], 
+                "time": r["time"], 
+                "buyer": r["buyer"], 
+                "email": r.get("email", "N/A"), 
+                "phone": r["phone"], 
+                "location": r["location"],
+                "gstin": r.get("gstin", "N/A"),
+                "items": items_parsed, 
+                "amount": r["amount"], 
+                "paid_amount": r["paid_amount"], 
+                "profit": r["profit"],
+                "balance_due": r["balance_due"], 
+                "payment": r["payment"], 
+                "msg": r["msg"], 
+                "status": r["status"]
             })
         return logs
     except:
@@ -136,10 +148,20 @@ def insert_db_log(log_data):
     if not supabase: return
     try:
         payload = {
-            "time": log_data['time'], "buyer": log_data['buyer'], "phone": log_data['phone'], "location": log_data['location'],
-            "items": json.dumps(log_data['items']), "amount": log_data['amount'], "paid_amount": log_data['paid_amount'],
-            "profit": log_data['profit'], "balance_due": log_data['balance_due'], "payment": log_data['payment'],
-            "msg": log_data['msg'], "status": log_data['status']
+            "time": log_data['time'], 
+            "buyer": log_data['buyer'], 
+            "email": log_data.get('email', ''), 
+            "phone": log_data['phone'], 
+            "location": log_data['location'],
+            "gstin": log_data.get('gstin', ''),
+            "items": json.dumps(log_data['items']), 
+            "amount": log_data['amount'], 
+            "paid_amount": log_data['paid_amount'],
+            "profit": log_data['profit'], 
+            "balance_due": log_data['balance_due'], 
+            "payment": log_data['payment'],
+            "msg": log_data['msg'], 
+            "status": log_data['status']
         }
         supabase.table("export_logs").insert(payload).execute()
     except Exception as e:
@@ -219,62 +241,90 @@ def number_to_words(num):
     except:
         return ""
 
-# --- PROFESSIONAL PDF GENERATOR (FPDF2) ---
+# --- PROFESSIONAL GST PDF GENERATOR ---
+def clean_pdf_text(text):
+    if not text:
+        return ""
+    return str(text).replace("₹", "INR ").encode('latin-1', 'ignore').decode('latin-1')
+
 def generate_pdf_invoice(log):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
     
-    # Header
-    pdf.cell(200, 10, txt="SHIVRAJ UNITRADE", ln=True, align="C")
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(200, 6, txt="Enterprise Merchant Exporter Management System", ln=True, align="C")
-    pdf.cell(200, 6, txt="------------------------------------------------------------------------------------------------", ln=True, align="C")
+    # Company Header
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(200, 7, txt=clean_pdf_text("SHIVRAJ UNITRADE"), ln=True, align="C")
+    pdf.set_font("Arial", "", 9)
+    pdf.cell(200, 5, txt=clean_pdf_text("Global Merchant Exporter & Enterprise Trading Hub"), ln=True, align="C")
+    pdf.cell(200, 5, txt=clean_pdf_text("GSTIN: 27AAAAA0000A1Z5 | Email: support@shivrajunitrade.com"), ln=True, align="C")
+    pdf.cell(200, 5, txt=clean_pdf_text("------------------------------------------------------------------------------------------------------------------------"), ln=True, align="C")
     
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(200, 8, txt="COMMERCIAL EXPORT INVOICE", ln=True, align="L")
+    pdf.ln(2)
+    pdf.set_font("Arial", "B", 11)
+    pdf.cell(200, 6, txt=clean_pdf_text("TAX INVOICE / EXPORT BILL OF SUPPLY"), ln=True, align="C")
     
-    pdf.set_font("Arial", "", 10)
-    pdf.cell(100, 6, txt=f"Invoice ID: #{log['id']}", ln=0)
-    pdf.cell(100, 6, txt=f"Date & Time: {log['time']}", ln=1)
-    pdf.cell(100, 6, txt=f"Customer Name: {log['buyer']}", ln=0)
-    pdf.cell(100, 6, txt=f"Destination Port: {log['location']}", ln=1)
-    pdf.cell(100, 6, txt=f"Contact Number: {log['phone']}", ln=1)
-    
-    pdf.ln(5)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(90, 8, txt="Product Description", border=1)
-    pdf.cell(30, 8, txt="Qty (KG)", border=1, align="C")
-    pdf.cell(35, 8, txt="Rate (INR)", border=1, align="R")
-    pdf.cell(35, 8, txt="Total (INR)", border=1, align="R", ln=1)
-    
-    pdf.set_font("Arial", "", 10)
-    for item in log['items']:
-        item_total = float(item['qty']) * float(item['price'])
-        pdf.cell(90, 7, txt=str(item['name']), border=1)
-        pdf.cell(30, 7, txt=f"{item['qty']:,.2f}", border=1, align="C")
-        pdf.cell(35, 7, txt=f"{item['price']:,.2f}", border=1, align="R")
-        pdf.cell(35, 7, txt=f"{item_total:,.2f}", border=1, align="R", ln=1)
-        
     pdf.ln(3)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(155, 6, txt="Grand Total Amount:", align="R")
-    pdf.cell(35, 6, txt=f"INR {log['amount']:,.2f}", align="R", ln=1)
-    pdf.cell(155, 6, txt="Total Paid Amount:", align="R")
-    pdf.cell(35, 6, txt=f"INR {log['paid_amount']:,.2f}", align="R", ln=1)
-    pdf.cell(155, 6, txt="Balance Due:", align="R")
-    pdf.cell(35, 6, txt=f"INR {log['balance_due']:,.2f}", align="R", ln=1)
+    pdf.set_font("Arial", "", 9)
+    # Left Box: Customer Info
+    pdf.cell(100, 5, txt=clean_pdf_text(f"Invoice No: #{log['id']}"), ln=0)
+    pdf.cell(90, 5, txt=clean_pdf_text(f"Date & Time: {log['time']}"), ln=1)
     
-    pdf.ln(10)
-    pdf.set_font("Arial", "I", 9)
-    pdf.multi_cell(0, 5, txt=f"Payment Summary & Audit Trail:\n{log['payment']}")
+    pdf.cell(100, 5, txt=clean_pdf_text(f"Buyer / Customer: {log['buyer']}"), ln=0)
+    pdf.cell(90, 5, txt=clean_pdf_text(f"Destination Port: {log['location']}"), ln=1)
     
-    pdf.ln(15)
-    pdf.set_font("Arial", "B", 10)
-    pdf.cell(0, 6, txt="For SHIVRAJ UNITRADE", align="R", ln=1)
+    pdf.cell(100, 5, txt=clean_pdf_text(f"Email: {log.get('email', 'N/A')}"), ln=0)
+    pdf.cell(90, 5, txt=clean_pdf_text(f"Phone: {log['phone']}"), ln=1)
+    
+    pdf.cell(100, 5, txt=clean_pdf_text(f"Customer GSTIN: {log.get('gstin', 'Unregistered / B2C')}"), ln=1)
+    
+    pdf.ln(5)
+    # Table Header
+    pdf.set_font("Arial", "B", 9)
+    pdf.cell(10, 7, txt=clean_pdf_text("Sr"), border=1, align="C")
+    pdf.cell(80, 7, txt=clean_pdf_text("Product Description"), border=1)
+    pdf.cell(25, 7, txt=clean_pdf_text("Qty (KG)"), border=1, align="C")
+    pdf.cell(35, 7, txt=clean_pdf_text("Rate (INR)"), border=1, align="R")
+    pdf.cell(40, 7, txt=clean_pdf_text("Total (INR)"), border=1, align="R", ln=1)
+    
+    pdf.set_font("Arial", "", 9)
+    for idx, item in enumerate(log['items'], 1):
+        item_total = float(item['qty']) * float(item['price'])
+        pdf.cell(10, 6, txt=clean_pdf_text(str(idx)), border=1, align="C")
+        pdf.cell(80, 6, txt=clean_pdf_text(str(item['name'])), border=1)
+        pdf.cell(25, 6, txt=clean_pdf_text(f"{item['qty']:,.2f}"), border=1, align="C")
+        pdf.cell(35, 6, txt=clean_pdf_text(f"{item['price']:,.2f}"), border=1, align="R")
+        pdf.cell(40, 6, txt=clean_pdf_text(f"{item_total:,.2f}"), border=1, align="R", ln=1)
+        
+    pdf.ln(2)
+    pdf.set_font("Arial", "B", 9)
+    pdf.cell(150, 6, txt=clean_pdf_text("Grand Total Amount:"), align="R")
+    pdf.cell(40, 6, txt=clean_pdf_text(f"INR {log['amount']:,.2f}"), align="R", ln=1)
+    
+    pdf.cell(150, 6, txt=clean_pdf_text("Total Amount Paid:"), align="R")
+    pdf.cell(40, 6, txt=clean_pdf_text(f"INR {log['paid_amount']:,.2f}"), align="R", ln=1)
+    
+    pdf.cell(150, 6, txt=clean_pdf_text("Balance Due / Credit:"), align="R")
+    pdf.cell(40, 6, txt=clean_pdf_text(f"INR {log['balance_due']:,.2f}"), align="R", ln=1)
+    
+    pdf.ln(3)
     pdf.set_font("Arial", "I", 8)
-    pdf.cell(0, 5, txt="[ Authorized Signatory & Company Stamp ]", align="R", ln=1)
+    pdf.multi_cell(0, 4, txt=clean_pdf_text(f"Amount in Words: {number_to_words(log['amount'])}"))
+    
+    pdf.ln(3)
+    pdf.set_font("Arial", "", 8)
+    pdf.multi_cell(0, 4, txt=clean_pdf_text(f"Payment Status & Audit Trail:\n{log['payment']}"))
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 8)
+    pdf.cell(0, 4, txt=clean_pdf_text("Bank Details for Wire Transfer / NEFT:"), ln=1)
+    pdf.set_font("Arial", "", 8)
+    pdf.cell(0, 4, txt=clean_pdf_text("Bank Name: HDFC Bank | A/C No: 50200012345678 | IFSC: HDFC0001234 | Branch: Pune, India"), ln=1)
+    
+    pdf.ln(8)
+    pdf.set_font("Arial", "B", 9)
+    pdf.cell(0, 5, txt=clean_pdf_text("For SHIVRAJ UNITRADE"), align="R", ln=1)
+    pdf.set_font("Arial", "I", 8)
+    pdf.cell(0, 4, txt=clean_pdf_text("[ Authorized Signatory & Company Stamp ]"), align="R", ln=1)
     
     return pdf.output(dest='S').encode('latin1')
 
@@ -293,19 +343,21 @@ with st.sidebar:
         for index, c_item in enumerate(st.session_state.cart):
             item_cost = float(c_item['price']) * float(c_item['qty'])
             cart_total += item_cost
-            st.markdown(f"**{index+1}. {c_item['name']}**\n{c_item['qty']} KG x ₹{c_item['price']:,.2f} = **₹{item_cost:,.2f}**")
+            st.markdown(f"**{index+1}. {c_item['name']}**\n{c_item['qty']} KG x INR {c_item['price']:,.2f} = **INR {item_cost:,.2f}**")
 
         if st.button("🗑️ Clear Cart"):
             st.session_state.cart = []
             st.rerun()
 
-        st.markdown(f"### **Grand Total: ₹{cart_total:,.2f}**")
+        st.markdown(f"### **Grand Total: INR {cart_total:,.2f}**")
         st.caption(f"🔤 In Words: {number_to_words(cart_total)}")
         st.divider()
         
-        st.subheader("📝 Secure Checkout")
+        st.subheader("📝 Secure Checkout & Customer Info")
         buyer_name = st.text_input("Customer/Buyer Name:", key="checkout_buyer_name").strip()
+        buyer_email = st.text_input("Customer Email ID (Saved for records):", key="checkout_buyer_email").strip()
         buyer_phone = st.text_input("WhatsApp Number (with country code):", key="checkout_buyer_phone").strip()
+        buyer_gstin = st.text_input("Customer GSTIN (Optional):", key="checkout_buyer_gstin").strip().upper()
         location = st.text_input("Destination Port/City:", key="checkout_location").strip()
         
         payment_options = ["Cash", "UPI / Bank Transfer", "Cheque", "Dual Payment Mode"]
@@ -350,14 +402,14 @@ with st.sidebar:
                     grand_total = float(current_grand_total)
                     total_order_profit = sum((float(c_item['price']) - float(current_prods[c_item['pid']]['cost_price'])) * float(c_item['qty']) for c_item in st.session_state.cart)
 
-                    final_payment_desc = f"Initial: {payment_mode} (Paid: ₹{paid_amount:,.2f})"
+                    final_payment_desc = f"Initial: {payment_mode} (Paid: INR {paid_amount:,.2f})"
 
                     for c_item in st.session_state.cart:
                         update_db_stock(c_item['pid'], current_prods[c_item['pid']]['stock_kg'] - float(c_item['qty']))
 
                     timestamp = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
-                    items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ ₹{it['price']})" for it in st.session_state.cart])
-                    credit_section_msg = f"🔴 Credit / Balance Due: ₹{credit_amount:,.2f}\n" if credit_amount > 0 else "✅ Payment Status: Fully Paid\n"
+                    items_summary_str = "\n".join([f"- {it['name']} ({it['qty']} KG @ INR {it['price']})" for it in st.session_state.cart])
+                    credit_section_msg = f"🔴 Credit / Balance Due: INR {credit_amount:,.2f}\n" if credit_amount > 0 else "✅ Payment Status: Fully Paid\n"
 
                     whatsapp_msg = (
                         f"🌐 *SHIVRAJ UNITRADE - COMMERCIAL INVOICE* 🌐\n"
@@ -365,11 +417,12 @@ with st.sidebar:
                         f"--------------------------------\n"
                         f"📅 Date: {timestamp}\n"
                         f"👤 Customer: {buyer_name}\n"
+                        f"📧 Email: {buyer_email}\n"
                         f"📍 Destination: {location}\n"
                         f"📦 Products Ordered:\n{items_summary_str}\n"
                         f"--------------------------------\n"
-                        f"💰 Grand Total: ₹{grand_total:,.2f}\n"
-                        f"💵 Paid Amount: ₹{paid_amount:,.2f}\n"
+                        f"💰 Grand Total: INR {grand_total:,.2f}\n"
+                        f"💵 Paid Amount: INR {paid_amount:,.2f}\n"
                         f"{credit_section_msg}"
                         f"💳 Mode: {final_payment_desc}\n"
                         f"--------------------------------\n"
@@ -378,12 +431,22 @@ with st.sidebar:
 
                     if not is_trial_mode:
                         insert_db_log({
-                            "time": timestamp, "buyer": buyer_name, "phone": buyer_phone, "location": location,
-                            "items": list(st.session_state.cart), "amount": float(grand_total), "paid_amount": float(paid_amount),
-                            "profit": float(total_order_profit), "balance_due": float(credit_amount), "payment": final_payment_desc,
-                            "msg": whatsapp_msg, "status": f"Pending (Due: ₹{credit_amount:,.2f})" if credit_amount > 0 else "Paid"
+                            "time": timestamp, 
+                            "buyer": buyer_name, 
+                            "email": buyer_email,
+                            "phone": buyer_phone, 
+                            "location": location,
+                            "gstin": buyer_gstin,
+                            "items": list(st.session_state.cart), 
+                            "amount": float(grand_total), 
+                            "paid_amount": float(paid_amount),
+                            "profit": float(total_order_profit), 
+                            "balance_due": float(credit_amount), 
+                            "payment": final_payment_desc,
+                            "msg": whatsapp_msg, 
+                            "status": f"Pending (Due: INR {credit_amount:,.2f})" if credit_amount > 0 else "Paid"
                         })
-                        st.success("✅ Order successfully saved to Supabase cloud database!")
+                        st.success("✅ Order successfully saved to Supabase cloud database with customer email!")
                     else:
                         st.warning("🧪 [Trial Mode] Invoice generated, record not saved to database.")
 
@@ -414,17 +477,17 @@ total_exp_amt = sum(e['amount'] for e in all_expenses)
 net_true_profit = total_gross_prof - total_exp_amt
 
 m1, m2, m3, m4 = st.columns(4)
-m1.metric("💰 Total Revenue", f"₹{total_rev:,.2f}")
+m1.metric("💰 Total Revenue", f"INR {total_rev:,.2f}")
 m2.metric("📦 Total Orders", f"{len(current_logs)}")
-m3.metric("📉 Outstanding Credit", f"₹{sum(log['balance_due'] for log in current_logs):,.2f}", delta_color="inverse")
-m4.metric("📈 True Net Profit", f"₹{net_true_profit:,.2f}", delta_color="normal" if net_true_profit >= 0 else "inverse")
+m3.metric("📉 Outstanding Credit", f"INR {sum(log['balance_due'] for log in current_logs):,.2f}", delta_color="inverse")
+m4.metric("📈 True Net Profit", f"INR {net_true_profit:,.2f}", delta_color="normal" if net_true_profit >= 0 else "inverse")
 
 st.divider()
 
 # --- TABS CONFIGURATION ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📦 Product Catalog & Store", 
-    "📜 Transaction Logs & Invoices",
+    "📜 Transaction Logs & GST Invoices",
     "📉 Credit Ledger (Accounts Receivable)",
     "📈 Profit & Expense Dashboard",
     "⚙️ Inventory & Warehouse Control"
@@ -442,7 +505,7 @@ with tab1:
                 with st.container(border=True):
                     st.markdown(f"### **{p['name']}**")
                     st.caption(f"Product ID: `{pid}`")
-                    st.markdown(f"💰 **Rate:** ₹{p['price_per_kg']:,.2f} / KG")
+                    st.markdown(f"💰 **Rate:** INR {p['price_per_kg']:,.2f} / KG")
                     
                     if p['stock_kg'] <= 500:
                         st.markdown(f"⚠️ **Stock:** `{p['stock_kg']} KG` *(Low Stock Alert)*")
@@ -467,7 +530,7 @@ with tab1:
                             st.rerun()
 
 with tab2:
-    st.subheader("All Sales History, Detailed Breakdowns & Printable Invoices")
+    st.subheader("All Sales History, Customer Emails & Printable GST Invoices")
     logs_data = get_db_logs()
     if logs_data:
         st.download_button("📥 Download Transaction History (CSV)", data=pd.DataFrame(logs_data).to_csv(index=False).encode('utf-8'), file_name='merchant_export_history.csv', mime='text/csv')
@@ -476,37 +539,54 @@ with tab2:
     if not logs_data:
         st.info("No transaction records found.")
     else:
-        search_query = st.text_input("🔍 Search Buyer Name or Destination:", key="search_txn").strip().lower()
-        filtered_logs = [l for l in logs_data if search_query in l['buyer'].lower() or search_query in l['location'].lower()]
+        search_query = st.text_input("🔍 Search Buyer Name, Email or Destination:", key="search_txn").strip().lower()
+        filtered_logs = [l for l in logs_data if search_query in l['buyer'].lower() or search_query in l['location'].lower() or search_query in l.get('email', '').lower()]
         
         for i, log in enumerate(reversed(filtered_logs), 1):
             with st.container(border=True):
                 st.markdown(f"**{i}. Date:** `{log['time']}` | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
-                st.markdown(f"💰 **Total Invoice:** ₹{log['amount']:,.2f} | 💵 **Total Paid:** ₹{log['paid_amount']:,.2f} | 🔴 **Current Balance Due:** **₹{log['balance_due']:,.2f}**")
+                st.markdown(f"📧 **Email:** `{log.get('email', 'N/A')}` | 🏢 **GSTIN:** `{log.get('gstin', 'N/A')}`")
+                st.markdown(f"💰 **Total Invoice:** INR {log['amount']:,.2f} | 💵 **Total Paid:** INR {log['paid_amount']:,.2f} | 🔴 **Current Balance Due:** **INR {log['balance_due']:,.2f}**")
                 
-                with st.expander("📋 View Detailed Ledger Breakdown & Commercial Invoice"):
-                    st.markdown("### **SHIVRAJ UNITRADE - COMMERCIAL INVOICE**")
+                with st.expander("📋 View GST Invoice & Details"):
+                    st.markdown("### **SHIVRAJ UNITRADE - TAX INVOICE**")
                     st.text(f"Date & Time: {log['time']}")
                     st.text(f"Customer Name: {log['buyer']}")
+                    st.text(f"Customer Email: {log.get('email', 'N/A')}")
                     st.text(f"Destination: {log['location']}")
                     st.text(f"Contact Phone: {log['phone']}")
+                    st.text(f"Customer GSTIN: {log.get('gstin', 'N/A')}")
                     st.markdown("---")
                     st.markdown("**Purchased Items:**")
                     for item in log['items']:
-                        st.text(f"- {item['name']}: {item['qty']} KG @ ₹{item['price']:,.2f}/KG = ₹{float(item['qty'])*float(item['price']):,.2f}")
+                        st.text(f"- {item['name']}: {item['qty']} KG @ INR {item['price']:,.2f}/KG = INR {float(item['qty'])*float(item['price']):,.2f}")
                     st.markdown("---")
-                    st.text(f"Grand Total Amount: ₹{log['amount']:,.2f}")
-                    st.text(f"Total Amount Paid: ₹{log['paid_amount']:,.2f}")
-                    st.text(f"Balance Due: ₹{log['balance_due']:,.2f}")
+                    st.text(f"Grand Total Amount: INR {log['amount']:,.2f}")
+                    st.text(f"Total Amount Paid: INR {log['paid_amount']:,.2f}")
+                    st.text(f"Balance Due: INR {log['balance_due']:,.2f}")
                     st.markdown(f"**Payment History & Trail:**\n{log['payment']}")
                     
-                    # PDF Download Button
+                    # --- DOWNLOAD PDF INVOICE BUTTON ---
                     pdf_bytes = generate_pdf_invoice(log)
-                    st.download_button("📄 Download Professional PDF Invoice", data=pdf_bytes, file_name=f"Invoice_{log['buyer']}_{log['id']}.pdf", mime="application/pdf", key=f"dl_pdf_{log['id']}")
+                    st.download_button(
+                        label="📄 Download Professional GST PDF Invoice", 
+                        data=pdf_bytes, 
+                        file_name=f"Tax_Invoice_{log['buyer']}_{log['id']}.pdf", 
+                        mime="application/pdf", 
+                        key=f"dl_pdf_{log['id']}"
+                    )
 
-                if log.get('phone'):
-                    wa_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(log['msg'])}"
-                    st.markdown(f"📲 [Send Commercial Invoice via WhatsApp]({wa_url})")
+                c_act1, c_act2 = st.columns(2)
+                with c_act1:
+                    if log.get('phone'):
+                        wa_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(log['msg'])}"
+                        st.markdown(f"📲 [Send Invoice via WhatsApp]({wa_url})")
+                with c_act2:
+                    if log.get('email') and log['email'] != 'N/A':
+                        mail_subject = urllib.parse.quote(f"Tax Invoice #{log['id']} - Shivraj Unitrade")
+                        mail_body = urllib.parse.quote(f"Dear {log['buyer']},\n\nPlease find your export invoice details below:\nTotal Amount: INR {log['amount']:,.2f}\nBalance Due: INR {log['balance_due']:,.2f}\n\nThank you for your business!\nShivraj Unitrade")
+                        mailto_url = f"mailto:{log['email']}?subject={mail_subject}&body={mail_body}"
+                        st.markdown(f"📧 [Send Email to Customer]({mailto_url})")
                 
                 single_pass = st.text_input("Admin Password to Delete Record:", type="password", key=f"del_pass_{log['id']}")
                 if st.button("🗑️ Delete Transaction Record", key=f"btn_del_{log['id']}"):
@@ -527,9 +607,9 @@ with tab3:
             with st.container(border=True):
                 c_info, c_action = st.columns([2, 2])
                 with c_info:
-                    st.markdown(f"👤 **{log['buyer']}** (`{log['location']}`)")
-                    st.markdown(f"💰 **Total Invoice:** ₹{log['amount']:,.2f} | 💵 **Paid So Far:** ₹{log['paid_amount']:,.2f}")
-                    st.markdown(f"🔴 **Current Balance Due:** **₹{log['balance_due']:,.2f}**")
+                    st.markdown(f"👤 **{log['buyer']}** (`{log['location']}`) | 📧 `{log.get('email', 'N/A')}`")
+                    st.markdown(f"💰 **Total Invoice:** INR {log['amount']:,.2f} | 💵 **Paid So Far:** INR {log['paid_amount']:,.2f}")
+                    st.markdown(f"🔴 **Current Balance Due:** **INR {log['balance_due']:,.2f}**")
                     with st.expander("📜 View Full Payment Audit Trail"):
                         st.text(log['payment'])
                 
@@ -542,13 +622,13 @@ with tab3:
                             if partial_pay > 0:
                                 new_paid_tot = float(log['paid_amount'] + partial_pay)
                                 new_due = float(log['balance_due'] - partial_pay)
-                                new_status = "Paid (Cleared)" if new_due <= 0 else f"Pending (Due: ₹{new_due:,.2f})"
+                                new_status = "Paid (Cleared)" if new_due <= 0 else f"Pending (Due: INR {new_due:,.2f})"
                                 
                                 timestamp_now = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
-                                new_pay_desc = log['payment'] + f"\n-> Received ₹{partial_pay:,.2f} on {timestamp_now}"
+                                new_pay_desc = log['payment'] + f"\n-> Received INR {partial_pay:,.2f} on {timestamp_now}"
                                 
                                 update_db_credit_payment(log['id'], new_paid_tot, new_due, new_status, new_pay_desc)
-                                st.success(f"Successfully recorded ₹{partial_pay:,.2f}! Remaining Balance: ₹{new_due:,.2f}")
+                                st.success(f"Successfully recorded INR {partial_pay:,.2f}! Remaining Balance: INR {new_due:,.2f}")
                                 st.rerun()
                             else:
                                 st.warning("Please enter a valid amount greater than zero.")
@@ -562,7 +642,7 @@ with tab3:
                             st.rerun()
 
                 if log.get('phone'):
-                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit balance of ₹{log['balance_due']:,.2f}. Kindly clear dues at your earliest convenience. Thank you!"
+                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit balance of INR {log['balance_due']:,.2f}. Kindly clear dues at your earliest convenience. Thank you!"
                     rem_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)}"
                     st.markdown(f"🔔 [Send WhatsApp Payment Reminder]({rem_url})")
 
@@ -572,7 +652,6 @@ with tab4:
     if admin_pass_prof == "admin123":
         st.success("Authentication successful.")
         
-        # Professional Interactive Charts Section
         st.markdown("### **📊 Visual Business Analytics**")
         if current_logs:
             chart_df = pd.DataFrame([{"Date": l['time'].split()[0], "Revenue": l['amount'], "Profit": l['profit']} for l in current_logs])
@@ -587,7 +666,7 @@ with tab4:
             with st.form("expense_form"):
                 exp_date = st.text_input("Expense Date:", value=datetime.datetime.now().strftime("%d-%m-%Y"))
                 exp_cat = st.selectbox("Expense Category:", ["Logistics & Shipping", "Packaging & Materials", "Customs & Clearance", "Office & Miscellaneous"])
-                exp_amt = float(st.number_input("Expense Amount (₹):", min_value=0.0, value=1000.0))
+                exp_amt = float(st.number_input("Expense Amount (INR):", min_value=0.0, value=1000.0))
                 exp_desc = st.text_input("Description/Notes:")
                 submitted_exp = st.form_submit_button("Record Expense")
                 if submitted_exp:
@@ -604,7 +683,7 @@ with tab4:
             else:
                 for exp in reversed(all_expenses):
                     with st.container(border=True):
-                        st.markdown(f"**Date:** `{exp['date']}` | **Category:** {exp['category']} | **Amount:** **₹{exp['amount']:,.2f}**")
+                        st.markdown(f"**Date:** `{exp['date']}` | **Category:** {exp['category']} | **Amount:** **INR {exp['amount']:,.2f}**")
                         st.text(f"Notes: {exp['description']}")
                         if st.button("Delete Expense", key=f"del_exp_{exp['id']}"):
                             delete_db_expense(exp['id'])
@@ -617,21 +696,18 @@ with tab4:
             total_exp = sum(e['amount'] for e in get_db_expenses())
             net_prof = gross_prof - total_exp
             
-            st.metric("Gross Product Margin Profit", f"₹{gross_prof:,.2f}")
-            st.metric("Total Operational Expenses", f"₹{total_exp:,.2f}")
-            st.metric("True Net Business Profit", f"₹{net_prof:,.2f}", delta_color="normal" if net_prof >= 0 else "inverse")
+            st.metric("Gross Product Margin Profit", f"INR {gross_prof:,.2f}")
+            st.metric("Total Operational Expenses", f"INR {total_exp:,.2f}")
+            st.metric("True Net Business Profit", f"INR {net_prof:,.2f}", delta_color="normal" if net_prof >= 0 else "inverse")
             
             st.markdown("---")
-            st.markdown("### **📥 Download Financial Reports**")
+            st.markdown("### **📥 Download Financial Reports & Customer Emails**")
+            if current_logs:
+                email_list_df = pd.DataFrame([{"Customer Name": l['buyer'], "Email": l.get('email', ''), "Phone": l['phone'], "GSTIN": l.get('gstin', '')} for l in current_logs])
+                st.download_button("📥 Download Saved Customer Email List (CSV)", data=email_list_df.to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_customers.csv", mime="text/csv")
+
             if all_expenses:
                 st.download_button("Download Expenses Report (CSV)", data=pd.DataFrame(all_expenses).to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_expenses.csv", mime="text/csv")
-            
-            if get_db_logs():
-                pnl_summary = [{"Metric": "Total Revenue", "Amount (INR)": total_rev},
-                               {"Metric": "Gross Product Profit", "Amount (INR)": gross_prof},
-                               {"Metric": "Total Operational Expenses", "Amount (INR)": total_exp},
-                               {"Metric": "True Net Business Profit", "Amount (INR)": net_prof}]
-                st.download_button("Download Profit & Loss Summary (CSV)", data=pd.DataFrame(pnl_summary).to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_pnl_summary.csv", mime="text/csv")
 
     elif admin_pass_prof:
         st.error("Incorrect password.")
@@ -648,8 +724,8 @@ with tab5:
             st.markdown("### **Add / Update Product**")
             pid = st.text_input("Product ID (e.g., EX104):", key="n_id").strip().upper()
             pname = st.text_input("Product Name & Specification:", key="n_name").strip()
-            pcost = float(st.number_input("Cost Price per KG (₹):", value=300.0, key="n_cost"))
-            pprice = float(st.number_input("Selling Price per KG (₹):", value=500.0, key="n_price"))
+            pcost = float(st.number_input("Cost Price per KG (INR):", value=300.0, key="n_cost"))
+            pprice = float(st.number_input("Selling Price per KG (INR):", value=500.0, key="n_price"))
             pstock = float(st.number_input("Available Stock (KG):", value=1000.0, key="n_stock"))
             if st.button("Save Product to Warehouse"):
                 if pid and pname:
