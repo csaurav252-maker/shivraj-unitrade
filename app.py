@@ -265,7 +265,6 @@ def generate_pdf_invoice(log):
     
     pdf.ln(3)
     pdf.set_font("Arial", "", 9)
-    # Left Box: Customer Info
     pdf.cell(100, 5, txt=clean_pdf_text(f"Invoice No: #{log['id']}"), ln=0)
     pdf.cell(90, 5, txt=clean_pdf_text(f"Date & Time: {log['time']}"), ln=1)
     
@@ -566,7 +565,6 @@ with tab2:
                     st.text(f"Balance Due: INR {log['balance_due']:,.2f}")
                     st.markdown(f"**Payment History & Trail:**\n{log['payment']}")
                     
-                    # --- DOWNLOAD PDF INVOICE BUTTON ---
                     pdf_bytes = generate_pdf_invoice(log)
                     st.download_button(
                         label="📄 Download Professional GST PDF Invoice", 
@@ -667,86 +665,64 @@ with tab4:
                 exp_date = st.text_input("Expense Date:", value=datetime.datetime.now().strftime("%d-%m-%Y"))
                 exp_cat = st.selectbox("Expense Category:", ["Logistics & Shipping", "Packaging & Materials", "Customs & Clearance", "Office & Miscellaneous"])
                 exp_amt = float(st.number_input("Expense Amount (INR):", min_value=0.0, value=1000.0))
-                exp_desc = st.text_input("Description/Notes:")
-                submitted_exp = st.form_submit_button("Record Expense")
-                if submitted_exp:
-                    if exp_amt > 0:
-                        add_db_expense(exp_date, exp_cat, exp_amt, exp_desc)
-                        st.success("Expense added successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Please enter a valid expense amount.")
-
-            st.markdown("### **Recorded Expenses List**")
-            if not all_expenses:
-                st.info("No operational expenses recorded.")
-            else:
-                for exp in reversed(all_expenses):
-                    with st.container(border=True):
-                        st.markdown(f"**Date:** `{exp['date']}` | **Category:** {exp['category']} | **Amount:** **INR {exp['amount']:,.2f}**")
-                        st.text(f"Notes: {exp['description']}")
-                        if st.button("Delete Expense", key=f"del_exp_{exp['id']}"):
-                            delete_db_expense(exp['id'])
-                            st.success("Expense record removed.")
-                            st.rerun()
+                exp_desc = st.text_input("Description / Notes:")
+                submit_exp = st.form_submit_button("➕ Add Expense Record")
+                if submit_exp:
+                    add_db_expense(exp_date, exp_cat, exp_amt, exp_desc)
+                    st.success("Expense added successfully!")
+                    st.rerun()
 
         with col_p2:
-            st.markdown("### **Financial Summary & True Net Profit**")
-            gross_prof = sum(log.get('profit', 0) for log in get_db_logs())
-            total_exp = sum(e['amount'] for e in get_db_expenses())
-            net_prof = gross_prof - total_exp
-            
-            st.metric("Gross Product Margin Profit", f"INR {gross_prof:,.2f}")
-            st.metric("Total Operational Expenses", f"INR {total_exp:,.2f}")
-            st.metric("True Net Business Profit", f"INR {net_prof:,.2f}", delta_color="normal" if net_prof >= 0 else "inverse")
-            
-            st.markdown("---")
-            st.markdown("### **📥 Download Financial Reports & Customer Emails**")
-            if current_logs:
-                email_list_df = pd.DataFrame([{"Customer Name": l['buyer'], "Email": l.get('email', ''), "Phone": l['phone'], "GSTIN": l.get('gstin', '')} for l in current_logs])
-                st.download_button("📥 Download Saved Customer Email List (CSV)", data=email_list_df.to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_customers.csv", mime="text/csv")
-
-            if all_expenses:
-                st.download_button("Download Expenses Report (CSV)", data=pd.DataFrame(all_expenses).to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_expenses.csv", mime="text/csv")
-
-    elif admin_pass_prof:
-        st.error("Incorrect password.")
+            st.markdown("### **Recorded Expenses Summary**")
+            if not all_expenses:
+                st.info("No expenses recorded yet.")
+            else:
+                for exp in all_expenses:
+                    with st.container(border=True):
+                        st.markdown(f"**{exp['date']}** | `{exp['category']}`")
+                        st.markdown(f"💸 **Amount:** INR {exp['amount']:,.2f}")
+                        if exp['description']:
+                            st.caption(f"Notes: {exp['description']}")
+                        if st.button("🗑️ Delete Expense", key=f"del_exp_{exp['id']}"):
+                            delete_db_expense(exp['id'])
+                            st.success("Expense deleted.")
+                            st.rerun()
     else:
-        st.info("Please enter the admin password to view financial analytics.")
+        st.warning("Please enter the correct admin password to unlock profit and expense analytics.")
 
 with tab5:
-    st.subheader("🔒 Inventory Management Control (Admin Authentication Required)")
-    admin_pass_inv = st.text_input("Enter Admin Password:", type="password", key="p_inv")
+    st.subheader("⚙️ Inventory & Warehouse Control")
+    admin_pass_inv = st.text_input("Enter Admin Password for Inventory Control:", type="password", key="p_inv")
     if admin_pass_inv == "admin123":
-        st.success("Authentication successful.")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("### **Add / Update Product**")
-            pid = st.text_input("Product ID (e.g., EX104):", key="n_id").strip().upper()
-            pname = st.text_input("Product Name & Specification:", key="n_name").strip()
-            pcost = float(st.number_input("Cost Price per KG (INR):", value=300.0, key="n_cost"))
-            pprice = float(st.number_input("Selling Price per KG (INR):", value=500.0, key="n_price"))
-            pstock = float(st.number_input("Available Stock (KG):", value=1000.0, key="n_stock"))
-            if st.button("Save Product to Warehouse"):
-                if pid and pname:
-                    add_db_product(pid, pname, pcost, pprice, pstock)
-                    st.success("Product inventory updated successfully!")
-                    st.rerun()
+        st.success("Warehouse management unlocked.")
+        
+        with st.form("add_prod_form"):
+            st.markdown("### **Add / Update Product in Warehouse**")
+            new_pid = st.text_input("Product ID (e.g., EX104):").strip().upper()
+            new_name = st.text_input("Product Name & Grade:").strip()
+            new_cost = float(st.number_input("Cost Price per KG (INR):", min_value=0.0, value=200.0))
+            new_price = float(st.number_input("Selling Price per KG (INR):", min_value=0.0, value=300.0))
+            new_stock = float(st.number_input("Initial Stock Quantity (KG):", min_value=0.0, value=1000.0))
+            
+            save_prod_btn = st.form_submit_button("💾 Save Product to Catalog")
+            if save_prod_btn:
+                if not new_pid or not new_name:
+                    st.error("Product ID and Name cannot be empty.")
                 else:
-                    st.error("Please fill in both Product ID and Name.")
-        with c2:
-            st.markdown("### **Remove Product**")
-            prods = get_db_products()
-            if prods:
-                sel_p = st.selectbox("Select Product ID to Delete:", list(prods.keys()), key="del_p_box")
-                st.text(f"Selected Product: {prods[sel_p]['name']}")
-                if st.button("Delete Product"):
-                    delete_db_product(sel_p)
-                    st.success("Product removed from warehouse inventory!")
+                    add_db_product(new_pid, new_name, new_cost, new_price, new_stock)
+                    st.success(f"Product {new_name} saved successfully!")
                     st.rerun()
-            else:
-                st.info("No products available to delete.")
-    elif admin_pass_inv:
-        st.error("Incorrect password.")
+
+        st.markdown("---")
+        st.markdown("### **Existing Inventory Items**")
+        live_inv = get_db_products()
+        for pid, p in live_inv.items():
+            with st.container(border=True):
+                st.markdown(f"**[{pid}] {p['name']}**")
+                st.markdown(f"Cost: INR {p['cost_price']} | Price: INR {p['price_per_kg']} | Stock: **{p['stock_kg']} KG**")
+                if st.button(f"🗑️ Delete Product `{pid}`", key=f"del_prod_{pid}"):
+                    delete_db_product(pid)
+                    st.success(f"Product {pid} deleted.")
+                    st.rerun()
     else:
-        st.info("Please enter the admin password to access inventory controls.")
+        st.warning("Please enter admin password to manage inventory.")
