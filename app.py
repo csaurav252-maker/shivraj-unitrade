@@ -312,77 +312,6 @@ def generate_pdf_invoice(log):
     
     pdf.ln(3)
     pdf.set_font("Arial", "", 8)
-    # --- PROFESSIONAL GST PDF GENERATOR ---
-def clean_pdf_text(text):
-    if not text:
-        return ""
-    return str(text).replace("₹", "INR ").encode('latin-1', 'ignore').decode('latin-1')
-
-def generate_pdf_invoice(log):
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Company Header
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(200, 7, txt=clean_pdf_text("SHIVRAJ UNITRADE"), ln=True, align="C")
-    pdf.set_font("Arial", "", 9)
-    pdf.cell(200, 5, txt=clean_pdf_text("Global Merchant Exporter & Enterprise Trading Hub"), ln=True, align="C")
-    pdf.cell(200, 5, txt=clean_pdf_text("GSTIN: 27AAAAA0000A1Z5 | Email: support@shivrajunitrade.com"), ln=True, align="C")
-    pdf.cell(200, 5, txt=clean_pdf_text("------------------------------------------------------------------------------------------------------------------------"), ln=True, align="C")
-    
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 11)
-    pdf.cell(200, 6, txt=clean_pdf_text("TAX INVOICE / EXPORT BILL OF SUPPLY"), ln=True, align="C")
-    
-    pdf.ln(3)
-    pdf.set_font("Arial", "", 9)
-    # Left Box: Customer Info
-    pdf.cell(100, 5, txt=clean_pdf_text(f"Invoice No: #{log['id']}"), ln=0)
-    pdf.cell(90, 5, txt=clean_pdf_text(f"Date & Time: {log['time']}"), ln=1)
-    
-    pdf.cell(100, 5, txt=clean_pdf_text(f"Buyer / Customer: {log['buyer']}"), ln=0)
-    pdf.cell(90, 5, txt=clean_pdf_text(f"Destination Port: {log['location']}"), ln=1)
-    
-    pdf.cell(100, 5, txt=clean_pdf_text(f"Email: {log.get('email', 'N/A')}"), ln=0)
-    pdf.cell(90, 5, txt=clean_pdf_text(f"Phone: {log['phone']}"), ln=1)
-    
-    pdf.cell(100, 5, txt=clean_pdf_text(f"Customer GSTIN: {log.get('gstin', 'Unregistered / B2C')}"), ln=1)
-    
-    pdf.ln(5)
-    # Table Header
-    pdf.set_font("Arial", "B", 9)
-    pdf.cell(10, 7, txt=clean_pdf_text("Sr"), border=1, align="C")
-    pdf.cell(80, 7, txt=clean_pdf_text("Product Description"), border=1)
-    pdf.cell(25, 7, txt=clean_pdf_text("Qty (KG)"), border=1, align="C")
-    pdf.cell(35, 7, txt=clean_pdf_text("Rate (INR)"), border=1, align="R")
-    pdf.cell(40, 7, txt=clean_pdf_text("Total (INR)"), border=1, align="R", ln=1)
-    
-    pdf.set_font("Arial", "", 9)
-    for idx, item in enumerate(log['items'], 1):
-        item_total = float(item['qty']) * float(item['price'])
-        pdf.cell(10, 6, txt=clean_pdf_text(str(idx)), border=1, align="C")
-        pdf.cell(80, 6, txt=clean_pdf_text(str(item['name'])), border=1)
-        pdf.cell(25, 6, txt=clean_pdf_text(f"{item['qty']:,.2f}"), border=1, align="C")
-        pdf.cell(35, 6, txt=clean_pdf_text(f"{item['price']:,.2f}"), border=1, align="R")
-        pdf.cell(40, 6, txt=clean_pdf_text(f"{item_total:,.2f}"), border=1, align="R", ln=1)
-        
-    pdf.ln(2)
-    pdf.set_font("Arial", "B", 9)
-    pdf.cell(150, 6, txt=clean_pdf_text("Grand Total Amount:"), align="R")
-    pdf.cell(40, 6, txt=clean_pdf_text(f"INR {log['amount']:,.2f}"), align="R", ln=1)
-    
-    pdf.cell(150, 6, txt=clean_pdf_text("Total Amount Paid:"), align="R")
-    pdf.cell(40, 6, txt=clean_pdf_text(f"INR {log['paid_amount']:,.2f}"), align="R", ln=1)
-    
-    pdf.cell(150, 6, txt=clean_pdf_text("Balance Due / Credit:"), align="R")
-    pdf.cell(40, 6, txt=clean_pdf_text(f"INR {log['balance_due']:,.2f}"), align="R", ln=1)
-    
-    pdf.ln(3)
-    pdf.set_font("Arial", "I", 8)
-    pdf.multi_cell(0, 4, txt=clean_pdf_text(f"Amount in Words: {number_to_words(log['amount'])}"))
-    
-    pdf.ln(3)
-    pdf.set_font("Arial", "", 8)
     pdf.multi_cell(0, 4, txt=clean_pdf_text(f"Payment Status & Audit Trail:\n{log['payment']}"))
     
     pdf.ln(5)
@@ -397,8 +326,8 @@ def generate_pdf_invoice(log):
     pdf.set_font("Arial", "I", 8)
     pdf.cell(0, 4, txt=clean_pdf_text("[ Authorized Signatory & Company Stamp ]"), align="R", ln=1)
     
-    # Fixed output for fpdf2 compatibility
-    return pdf.output(dest='S')
+    return bytes(pdf.output())
+
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
@@ -821,6 +750,3 @@ with tab5:
         st.error("Incorrect password.")
     else:
         st.info("Please enter the admin password to access inventory controls.")
-
-
-
