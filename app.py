@@ -115,7 +115,8 @@ def delete_db_product(pid):
 def get_db_logs():
     if not supabase: return []
     try:
-        res = supabase.table("export_logs").select("*").order("id", desc=False).execute()
+        # नवीन ऑर्डर सर्वात वर दिसावी म्हणून desc=True केले आहे
+        res = supabase.table("export_logs").select("*").order("id", desc=True).execute()
         logs = []
         for r in res.data:
             try:
@@ -155,10 +156,10 @@ def insert_db_log(log_data):
             "location": log_data['location'],
             "gstin": log_data.get('gstin', ''),
             "items": json.dumps(log_data['items']), 
-            "amount": log_data['amount'], 
-            "paid_amount": log_data['paid_amount'],
-            "profit": log_data['profit'], 
-            "balance_due": log_data['balance_due'], 
+            "amount": float(log_data['amount']), 
+            "paid_amount": float(log_data['paid_amount']),
+            "profit": float(log_data['profit']), 
+            "balance_due": float(log_data['balance_due']), 
             "payment": log_data['payment'],
             "msg": log_data['msg'], 
             "status": log_data['status']
@@ -251,7 +252,6 @@ def generate_pdf_invoice(log):
     pdf = FPDF()
     pdf.add_page()
     
-    # Company Header
     pdf.set_font("Arial", "B", 14)
     pdf.cell(200, 7, txt=clean_pdf_text("SHIVRAJ UNITRADE"), ln=True, align="C")
     pdf.set_font("Arial", "", 9)
@@ -277,7 +277,6 @@ def generate_pdf_invoice(log):
     pdf.cell(100, 5, txt=clean_pdf_text(f"Customer GSTIN: {log.get('gstin', 'Unregistered / B2C')}"), ln=1)
     
     pdf.ln(5)
-    # Table Header
     pdf.set_font("Arial", "B", 9)
     pdf.cell(10, 7, txt=clean_pdf_text("Sr"), border=1, align="C")
     pdf.cell(80, 7, txt=clean_pdf_text("Product Description"), border=1)
@@ -445,12 +444,12 @@ with st.sidebar:
                             "msg": whatsapp_msg, 
                             "status": f"Pending (Due: INR {credit_amount:,.2f})" if credit_amount > 0 else "Paid"
                         })
-                        st.success("✅ Order successfully saved to Supabase cloud database with customer email!")
+                        st.success("✅ Order successfully saved to Supabase cloud database!")
                     else:
                         st.warning("🧪 [Trial Mode] Invoice generated, record not saved to database.")
 
                     st.session_state.cart = []
-                    st.balloons()
+                    st.rerun()
 
 # --- MAIN DASHBOARD HEADER ---
 col_logo, col_title = st.columns([1, 6])
@@ -541,7 +540,8 @@ with tab2:
         search_query = st.text_input("🔍 Search Buyer Name, Email or Destination:", key="search_txn").strip().lower()
         filtered_logs = [l for l in logs_data if search_query in l['buyer'].lower() or search_query in l['location'].lower() or search_query in l.get('email', '').lower()]
         
-        for i, log in enumerate(reversed(filtered_logs), 1):
+        # इथे आपण सर्व ऑर्डर्स योग्य क्रमाने दाखवत आहोत (नवीन ऑर्डर वर)
+        for i, log in enumerate(filtered_logs, 1):
             with st.container(border=True):
                 st.markdown(f"**{i}. Date:** `{log['time']}` | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
                 st.markdown(f"📧 **Email:** `{log.get('email', 'N/A')}` | 🏢 **GSTIN:** `{log.get('gstin', 'N/A')}`")
