@@ -5,8 +5,9 @@ import pandas as pd
 import os
 import json
 from supabase import create_client, Client
+from fpdf import FPDF
 
-# --- SUPABASE CONFIGURATION (Already Integrated) ---
+# --- SUPABASE CONFIGURATION ---
 SUPABASE_URL = "https://fwlckedxrtkymwqbegos.supabase.co"
 SUPABASE_KEY = "sb_publishable_UJinMiq1Fln8ckiLH0cvlA_2ApxVLLS"
 
@@ -40,7 +41,37 @@ seed_default_products()
 fn_logo_path = "s_.png"
 page_icon_file = fn_logo_path if os.path.exists(fn_logo_path) else "🌐"
 
-st.set_page_config(page_title="Shivraj Unitrade | Enterprise Merchant Exporter", page_icon=page_icon_file, layout="wide")
+st.set_page_config(page_title="Shivraj Unitrade | Global Export Management", page_icon=page_icon_file, layout="wide")
+
+# --- CUSTOM PROFESSIONAL UI STYLING (CSS) ---
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f8fafc;
+    }
+    .stMetric {
+        background-color: #ffffff;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #e2e8f0;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #f1f5f9;
+        border-radius: 6px;
+        padding: 10px 20px;
+        font-weight: 600;
+        color: #334155;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #0f172a !important;
+        color: #ffffff !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 # --- DATABASE HELPER FUNCTIONS (Supabase) ---
 def get_db_products():
@@ -188,6 +219,65 @@ def number_to_words(num):
     except:
         return ""
 
+# --- PROFESSIONAL PDF GENERATOR (FPDF2) ---
+def generate_pdf_invoice(log):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 16)
+    
+    # Header
+    pdf.cell(200, 10, txt="SHIVRAJ UNITRADE", ln=True, align="C")
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(200, 6, txt="Enterprise Merchant Exporter Management System", ln=True, align="C")
+    pdf.cell(200, 6, txt="------------------------------------------------------------------------------------------------", ln=True, align="C")
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 12)
+    pdf.cell(200, 8, txt="COMMERCIAL EXPORT INVOICE", ln=True, align="L")
+    
+    pdf.set_font("Arial", "", 10)
+    pdf.cell(100, 6, txt=f"Invoice ID: #{log['id']}", ln=0)
+    pdf.cell(100, 6, txt=f"Date & Time: {log['time']}", ln=1)
+    pdf.cell(100, 6, txt=f"Customer Name: {log['buyer']}", ln=0)
+    pdf.cell(100, 6, txt=f"Destination Port: {log['location']}", ln=1)
+    pdf.cell(100, 6, txt=f"Contact Number: {log['phone']}", ln=1)
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(90, 8, txt="Product Description", border=1)
+    pdf.cell(30, 8, txt="Qty (KG)", border=1, align="C")
+    pdf.cell(35, 8, txt="Rate (INR)", border=1, align="R")
+    pdf.cell(35, 8, txt="Total (INR)", border=1, align="R", ln=1)
+    
+    pdf.set_font("Arial", "", 10)
+    for item in log['items']:
+        item_total = float(item['qty']) * float(item['price'])
+        pdf.cell(90, 7, txt=str(item['name']), border=1)
+        pdf.cell(30, 7, txt=f"{item['qty']:,.2f}", border=1, align="C")
+        pdf.cell(35, 7, txt=f"{item['price']:,.2f}", border=1, align="R")
+        pdf.cell(35, 7, txt=f"{item_total:,.2f}", border=1, align="R", ln=1)
+        
+    pdf.ln(3)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(155, 6, txt="Grand Total Amount:", align="R")
+    pdf.cell(35, 6, txt=f"INR {log['amount']:,.2f}", align="R", ln=1)
+    pdf.cell(155, 6, txt="Total Paid Amount:", align="R")
+    pdf.cell(35, 6, txt=f"INR {log['paid_amount']:,.2f}", align="R", ln=1)
+    pdf.cell(155, 6, txt="Balance Due:", align="R")
+    pdf.cell(35, 6, txt=f"INR {log['balance_due']:,.2f}", align="R", ln=1)
+    
+    pdf.ln(10)
+    pdf.set_font("Arial", "I", 9)
+    pdf.multi_cell(0, 5, txt=f"Payment Summary & Audit Trail:\n{log['payment']}")
+    
+    pdf.ln(15)
+    pdf.set_font("Arial", "B", 10)
+    pdf.cell(0, 6, txt="For SHIVRAJ UNITRADE", align="R", ln=1)
+    pdf.set_font("Arial", "I", 8)
+    pdf.cell(0, 5, txt="[ Authorized Signatory & Company Stamp ]", align="R", ln=1)
+    
+    return pdf.output(dest='S').encode('latin1')
+
 if "cart" not in st.session_state:
     st.session_state.cart = []
 
@@ -306,10 +396,10 @@ with col_logo:
     if os.path.exists("s_.png"):
         st.image("s_.png", width=100)
     else:
-        st.markdown("🟢 **[SU Logo Missing]**")
+        st.markdown("🟢 **[SU Logo]**")
 with col_title:
     st.title("SHIVRAJ UNITRADE")
-    st.markdown("### *Enterprise Merchant Exporter Management System*")
+    st.markdown("### *Enterprise Merchant Exporter & Global Trade Hub*")
 
 st.image("https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=1200&q=80", use_container_width=True)
 st.divider()
@@ -326,7 +416,7 @@ net_true_profit = total_gross_prof - total_exp_amt
 m1, m2, m3, m4 = st.columns(4)
 m1.metric("💰 Total Revenue", f"₹{total_rev:,.2f}")
 m2.metric("📦 Total Orders", f"{len(current_logs)}")
-m3.metric("📉 Total Outstanding Credit", f"₹{sum(log['balance_due'] for log in current_logs):,.2f}", delta_color="inverse")
+m3.metric("📉 Outstanding Credit", f"₹{sum(log['balance_due'] for log in current_logs):,.2f}", delta_color="inverse")
 m4.metric("📈 True Net Profit", f"₹{net_true_profit:,.2f}", delta_color="normal" if net_true_profit >= 0 else "inverse")
 
 st.divider()
@@ -356,6 +446,9 @@ with tab1:
                     
                     if p['stock_kg'] <= 500:
                         st.markdown(f"⚠️ **Stock:** `{p['stock_kg']} KG` *(Low Stock Alert)*")
+                        supplier_msg = f"Hello, stock for {p['name']} (ID: {pid}) has dropped to {p['stock_kg']} KG at Shivraj Unitrade warehouse. Kindly arrange quick restock."
+                        sup_url = f"https://wa.me/?text={urllib.parse.quote(supplier_msg)}"
+                        st.markdown(f"🚨 [Send WhatsApp Restock Alert]({sup_url})")
                     else:
                         st.markdown(f"📦 **Stock:** `{p['stock_kg']} KG`")
                         
@@ -407,22 +500,9 @@ with tab2:
                     st.text(f"Balance Due: ₹{log['balance_due']:,.2f}")
                     st.markdown(f"**Payment History & Trail:**\n{log['payment']}")
                     
-                    invoice_text = f"""SHIVRAJ UNITRADE - COMMERCIAL INVOICE
-=====================================
-Date: {log['time']}
-Customer: {log['buyer']}
-Destination: {log['location']}
--------------------------------------
-Grand Total: INR {log['amount']:,.2f}
-Total Paid: INR {log['paid_amount']:,.2f}
-Balance Due: INR {log['balance_due']:,.2f}
-Payment Status: {log['status']}
--------------------------------------
-Payment Record Logs:
-{log['payment']}
-=====================================
-Thank you for doing business with Shivraj Unitrade!"""
-                    st.download_button("📥 Download Official Printable Invoice (.txt)", data=invoice_text.encode('utf-8'), file_name=f"Invoice_{log['buyer']}_{log['id']}.txt", mime="text/plain", key=f"dl_inv_{log['id']}")
+                    # PDF Download Button
+                    pdf_bytes = generate_pdf_invoice(log)
+                    st.download_button("📄 Download Professional PDF Invoice", data=pdf_bytes, file_name=f"Invoice_{log['buyer']}_{log['id']}.pdf", mime="application/pdf", key=f"dl_pdf_{log['id']}")
 
                 if log.get('phone'):
                     wa_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(log['msg'])}"
@@ -487,12 +567,21 @@ with tab3:
                     st.markdown(f"🔔 [Send WhatsApp Payment Reminder]({rem_url})")
 
 with tab4:
-    st.subheader("🔒 Profit & Expense Dashboard (Admin Authentication Required)")
+    st.subheader("🔒 Profit & Expense Dashboard & Analytics")
     admin_pass_prof = st.text_input("Enter Admin Password:", type="password", key="p_prof")
     if admin_pass_prof == "admin123":
         st.success("Authentication successful.")
-        col_p1, col_p2 = st.columns(2)
         
+        # Professional Interactive Charts Section
+        st.markdown("### **📊 Visual Business Analytics**")
+        if current_logs:
+            chart_df = pd.DataFrame([{"Date": l['time'].split()[0], "Revenue": l['amount'], "Profit": l['profit']} for l in current_logs])
+            chart_grouped = chart_df.groupby("Date").sum().reset_index()
+            st.line_chart(chart_grouped.set_index("Date"))
+        else:
+            st.info("Insufficient data for chart visualization.")
+
+        col_p1, col_p2 = st.columns(2)
         with col_p1:
             st.markdown("### **Operational Expense Tracker**")
             with st.form("expense_form"):
@@ -532,7 +621,17 @@ with tab4:
             st.metric("Total Operational Expenses", f"₹{total_exp:,.2f}")
             st.metric("True Net Business Profit", f"₹{net_prof:,.2f}", delta_color="normal" if net_prof >= 0 else "inverse")
             
-            st.info("True Net Profit is calculated automatically by subtracting operational expenses from gross product margins.")
+            st.markdown("---")
+            st.markdown("### **📥 Download Financial Reports**")
+            if all_expenses:
+                st.download_button("Download Expenses Report (CSV)", data=pd.DataFrame(all_expenses).to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_expenses.csv", mime="text/csv")
+            
+            if get_db_logs():
+                pnl_summary = [{"Metric": "Total Revenue", "Amount (INR)": total_rev},
+                               {"Metric": "Gross Product Profit", "Amount (INR)": gross_prof},
+                               {"Metric": "Total Operational Expenses", "Amount (INR)": total_exp},
+                               {"Metric": "True Net Business Profit", "Amount (INR)": net_prof}]
+                st.download_button("Download Profit & Loss Summary (CSV)", data=pd.DataFrame(pnl_summary).to_csv(index=False).encode('utf-8'), file_name="shivraj_unitrade_pnl_summary.csv", mime="text/csv")
 
     elif admin_pass_prof:
         st.error("Incorrect password.")
