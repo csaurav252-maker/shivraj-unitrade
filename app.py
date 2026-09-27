@@ -2,77 +2,38 @@ import datetime
 import urllib.parse
 import streamlit as st
 import pandas as pd
-import sqlite3
 import os
 import json
+from supabase import create_client, Client
 
-# --- DATABASE SETUP (Restored to original to keep all your past data & transactions safe) ---
-DB_FILE = "shivraj_unitrade.db"
+# --- SUPABASE CONFIGURATION (Already Integrated) ---
+SUPABASE_URL = "https://fwlckedxrtkymwqbegos.supabase.co"
+SUPABASE_KEY = "sb_publishable_UJinMiq1Fln8ckiLH0cvlA_2ApxVLLS"
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    
-    # Products Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS products (
-            pid TEXT PRIMARY KEY,
-            name TEXT,
-            cost_price REAL,
-            price_per_kg REAL,
-            stock_kg REAL
-        )
-    ''')
-    
-    # Transactions / Export Logs Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS export_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            time TEXT,
-            buyer TEXT,
-            phone TEXT,
-            location TEXT,
-            items TEXT,
-            amount REAL,
-            paid_amount REAL,
-            profit REAL,
-            balance_due REAL,
-            payment TEXT,
-            msg TEXT,
-            status TEXT
-        )
-    ''')
+@st.cache_resource
+def init_supabase():
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        return None
 
-    # Expenses Table for True Net Profit Tracking
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date TEXT,
-            category TEXT,
-            amount REAL,
-            description TEXT
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
+supabase: Client = init_supabase()
 
-init_db()
-
+# --- DEFAULT PRODUCTS SEEDING ---
 def seed_default_products():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM products")
-    count = cursor.fetchone()[0]
-    if count == 0:
-        default_prods = [
-            ("EX101", "Onion Powder (Premium Export Grade)", 250.0, 350.0, 5000.0),
-            ("EX102", "Garlic Powder (Premium Export Grade)", 320.0, 450.0, 3500.0),
-            ("EX103", "Mix Spices Blend (Garam Masala)", 420.0, 600.0, 2000.0),
-        ]
-        cursor.executemany("INSERT INTO products VALUES (?, ?, ?, ?, ?)", default_prods)
-        conn.commit()
-    conn.close()
+    if not supabase:
+        return
+    try:
+        res = supabase.table("products").select("pid").execute()
+        if not res.data:
+            default_prods = [
+                {"pid": "EX101", "name": "Onion Powder (Premium Export Grade)", "cost_price": 250.0, "price_per_kg": 350.0, "stock_kg": 5000.0},
+                {"pid": "EX102", "name": "Garlic Powder (Premium Export Grade)", "cost_price": 320.0, "price_per_kg": 450.0, "stock_kg": 3500.0},
+                {"pid": "EX103", "name": "Mix Spices Blend (Garam Masala)", "cost_price": 420.0, "price_per_kg": 600.0, "stock_kg": 2000.0},
+            ]
+            supabase.table("products").insert(default_prods).execute()
+    except Exception as e:
+        pass
 
 seed_default_products()
 
@@ -81,115 +42,116 @@ page_icon_file = fn_logo_path if os.path.exists(fn_logo_path) else "🌐"
 
 st.set_page_config(page_title="Shivraj Unitrade | Enterprise Merchant Exporter", page_icon=page_icon_file, layout="wide")
 
+# --- DATABASE HELPER FUNCTIONS (Supabase) ---
 def get_db_products():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT pid, name, cost_price, price_per_kg, stock_kg FROM products")
-    rows = cursor.fetchall()
-    conn.close()
-    prods = {}
-    for r in rows:
-        prods[r[0]] = {
-            "name": r[1],
-            "cost_price": r[2],
-            "price_per_kg": r[3],
-            "stock_kg": r[4]
-        }
-    return prods
+    if not supabase: return {}
+    try:
+        res = supabase.table("products").select("*").execute()
+        prods = {}
+        for r in res.data:
+            prods[r["pid"]] = {
+                "name": r["name"],
+                "cost_price": r["cost_price"],
+                "price_per_kg": r["price_per_kg"],
+                "stock_kg": r["stock_kg"]
+            }
+        return prods
+    except:
+        return {}
 
 def update_db_stock(pid, new_stock):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE products SET stock_kg = ? WHERE pid = ?", (new_stock, pid))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        supabase.table("products").update({"stock_kg": new_stock}).eq("pid", pid).execute()
+    except:
+        pass
 
 def add_db_product(pid, name, cost_price, price_per_kg, stock_kg):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO products VALUES (?, ?, ?, ?, ?)", (pid, name, cost_price, price_per_kg, stock_kg))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        data = {"pid": pid, "name": name, "cost_price": cost_price, "price_per_kg": price_per_kg, "stock_kg": stock_kg}
+        supabase.table("products").upsert(data).execute()
+    except:
+        pass
 
 def delete_db_product(pid):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM products WHERE pid = ?", (pid,))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        supabase.table("products").delete().eq("pid", pid).execute()
+    except:
+        pass
 
 def get_db_logs():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, time, buyer, phone, location, items, amount, paid_amount, profit, balance_due, payment, msg, status FROM export_logs")
-    rows = cursor.fetchall()
-    conn.close()
-    logs = []
-    for r in rows:
-        try:
-            items_parsed = json.loads(r[5])
-        except:
-            items_parsed = []
+    if not supabase: return []
+    try:
+        res = supabase.table("export_logs").select("*").order("id", desc=False).execute()
+        logs = []
+        for r in res.data:
+            try:
+                items_parsed = json.loads(r["items"]) if isinstance(r["items"], str) else r["items"]
+            except:
+                items_parsed = []
             
-        logs.append({
-            "id": r[0], "time": r[1], "buyer": r[2], "phone": r[3], "location": r[4],
-            "items": items_parsed, "amount": r[6], "paid_amount": r[7], "profit": r[8],
-            "balance_due": r[9], "payment": r[10], "msg": r[11], "status": r[12]
-        })
-    return logs
+            logs.append({
+                "id": r["id"], "time": r["time"], "buyer": r["buyer"], "phone": r["phone"], "location": r["location"],
+                "items": items_parsed, "amount": r["amount"], "paid_amount": r["paid_amount"], "profit": r["profit"],
+                "balance_due": r["balance_due"], "payment": r["payment"], "msg": r["msg"], "status": r["status"]
+            })
+        return logs
+    except:
+        return []
 
 def insert_db_log(log_data):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO export_logs (time, buyer, phone, location, items, amount, paid_amount, profit, balance_due, payment, msg, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        log_data['time'], log_data['buyer'], log_data['phone'], log_data['location'],
-        json.dumps(log_data['items']), log_data['amount'], log_data['paid_amount'],
-        log_data['profit'], log_data['balance_due'], log_data['payment'],
-        log_data['msg'], log_data['status']
-    ))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        payload = {
+            "time": log_data['time'], "buyer": log_data['buyer'], "phone": log_data['phone'], "location": log_data['location'],
+            "items": json.dumps(log_data['items']), "amount": log_data['amount'], "paid_amount": log_data['paid_amount'],
+            "profit": log_data['profit'], "balance_due": log_data['balance_due'], "payment": log_data['payment'],
+            "msg": log_data['msg'], "status": log_data['status']
+        }
+        supabase.table("export_logs").insert(payload).execute()
+    except Exception as e:
+        st.error(f"Error saving to cloud: {e}")
 
 def delete_db_log(log_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM export_logs WHERE id = ?", (log_id,))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        supabase.table("export_logs").delete().eq("id", log_id).execute()
+    except:
+        pass
 
 def update_db_credit_payment(log_id, new_paid_total, new_balance_due, status, payment_str):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE export_logs SET paid_amount = ?, balance_due = ?, status = ?, payment = ? WHERE id = ?", 
-                   (new_paid_total, new_balance_due, status, payment_str, log_id))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        supabase.table("export_logs").update({
+            "paid_amount": new_paid_total, "balance_due": new_balance_due, "status": status, "payment": payment_str
+        }).eq("id", log_id).execute()
+    except:
+        pass
 
 def get_db_expenses():
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, date, category, amount, description FROM expenses")
-    rows = cursor.fetchall()
-    conn.close()
-    expenses = [{"id": r[0], "date": r[1], "category": r[2], "amount": r[3], "description": r[4]} for r in rows]
-    return expenses
+    if not supabase: return []
+    try:
+        res = supabase.table("expenses").select("*").execute()
+        expenses = [{"id": r["id"], "date": r["date"], "category": r["category"], "amount": r["amount"], "description": r["description"]} for r in res.data]
+        return expenses
+    except:
+        return []
 
 def add_db_expense(date, category, amount, description):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO expenses (date, category, amount, description) VALUES (?, ?, ?, ?)", (date, category, amount, description))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        supabase.table("expenses").insert({"date": date, "category": category, "amount": amount, "description": description}).execute()
+    except:
+        pass
 
 def delete_db_expense(exp_id):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM expenses WHERE id = ?", (exp_id,))
-    conn.commit()
-    conn.close()
+    if not supabase: return
+    try:
+        supabase.table("expenses").delete().eq("id", exp_id).execute()
+    except:
+        pass
 
 def number_to_words(num):
     if num == 0:
@@ -331,14 +293,14 @@ with st.sidebar:
                             "profit": float(total_order_profit), "balance_due": float(credit_amount), "payment": final_payment_desc,
                             "msg": whatsapp_msg, "status": f"Pending (Due: ₹{credit_amount:,.2f})" if credit_amount > 0 else "Paid"
                         })
-                        st.success("✅ Order successfully saved to database!")
+                        st.success("✅ Order successfully saved to Supabase cloud database!")
                     else:
                         st.warning("🧪 [Trial Mode] Invoice generated, record not saved to database.")
 
                     st.session_state.cart = []
                     st.balloons()
 
-# --- MAIN DASHBOARD HEADER WITH REAL LOGO IMAGE (`s_.png`) ---
+# --- MAIN DASHBOARD HEADER ---
 col_logo, col_title = st.columns([1, 6])
 with col_logo:
     if os.path.exists("s_.png"):
@@ -429,7 +391,6 @@ with tab2:
                 st.markdown(f"**{i}. Date:** `{log['time']}` | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
                 st.markdown(f"💰 **Total Invoice:** ₹{log['amount']:,.2f} | 💵 **Total Paid:** ₹{log['paid_amount']:,.2f} | 🔴 **Current Balance Due:** **₹{log['balance_due']:,.2f}**")
                 
-                # Expandable Details & Printable Commercial Invoice Generator
                 with st.expander("📋 View Detailed Ledger Breakdown & Commercial Invoice"):
                     st.markdown("### **SHIVRAJ UNITRADE - COMMERCIAL INVOICE**")
                     st.text(f"Date & Time: {log['time']}")
