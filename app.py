@@ -6,7 +6,7 @@ import os
 import json
 from supabase import create_client, Client
 
-# --- SUPABASE CONFIGURATION (Already Integrated) ---
+# --- SUPABASE CONFIGURATION ---
 SUPABASE_URL = "https://fwlckedxrtkymwqbegos.supabase.co"
 SUPABASE_KEY = "sb_publishable_UJinMiq1Fln8ckiLH0cvlA_2ApxVLLS"
 
@@ -67,12 +67,16 @@ def update_db_stock(pid, new_stock):
         pass
 
 def add_db_product(pid, name, cost_price, price_per_kg, stock_kg):
-    if not supabase: return
+    if not supabase: 
+        st.error("❌ Supabase connection not found!")
+        return False
     try:
         data = {"pid": pid, "name": name, "cost_price": cost_price, "price_per_kg": price_per_kg, "stock_kg": stock_kg}
         supabase.table("products").upsert(data).execute()
-    except:
-        pass
+        return True
+    except Exception as e:
+        st.error(f"❌ Database Error: {e}")
+        return False
 
 def delete_db_product(pid):
     if not supabase: return
@@ -458,120 +462,4 @@ with tab3:
                     
                     col_b1, col_b2 = st.columns(2)
                     with col_b1:
-                        if st.button("💵 Record Partial Payment", key=f"btn_part_{log['id']}"):
-                            if partial_pay > 0:
-                                new_paid_tot = float(log['paid_amount'] + partial_pay)
-                                new_due = float(log['balance_due'] - partial_pay)
-                                new_status = "Paid (Cleared)" if new_due <= 0 else f"Pending (Due: ₹{new_due:,.2f})"
-                                
-                                timestamp_now = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
-                                new_pay_desc = log['payment'] + f"\n-> Received ₹{partial_pay:,.2f} on {timestamp_now}"
-                                
-                                update_db_credit_payment(log['id'], new_paid_tot, new_due, new_status, new_pay_desc)
-                                st.success(f"Successfully recorded ₹{partial_pay:,.2f}! Remaining Balance: ₹{new_due:,.2f}")
-                                st.rerun()
-                            else:
-                                st.warning("Please enter a valid amount greater than zero.")
-                    with col_b2:
-                        if st.button("✅ Fully Clear Dues", key=f"full_{log['id']}"):
-                            new_paid_tot = float(log['amount'])
-                            timestamp_now = datetime.datetime.now().strftime("%d-%m-%Y %H:%M")
-                            new_pay_desc = log['payment'] + f"\n-> Fully Settled on {timestamp_now}"
-                            update_db_credit_payment(log['id'], new_paid_tot, 0.0, "Paid", new_pay_desc)
-                            st.success("Credit balance fully settled and cleared!")
-                            st.rerun()
-
-                if log.get('phone'):
-                    rem_msg = f"Hello {log['buyer']}, gentle reminder from Shivraj Unitrade for your remaining credit balance of ₹{log['balance_due']:,.2f}. Kindly clear dues at your earliest convenience. Thank you!"
-                    rem_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(rem_msg)}"
-                    st.markdown(f"🔔 [Send WhatsApp Payment Reminder]({rem_url})")
-
-with tab4:
-    st.subheader("🔒 Profit & Expense Dashboard (Admin Authentication Required)")
-    admin_pass_prof = st.text_input("Enter Admin Password:", type="password", key="p_prof")
-    if admin_pass_prof == "admin123":
-        st.success("Authentication successful.")
-        col_p1, col_p2 = st.columns(2)
-        
-        with col_p1:
-            st.markdown("### **Operational Expense Tracker**")
-            with st.form("expense_form"):
-                exp_date = st.text_input("Expense Date:", value=datetime.datetime.now().strftime("%d-%m-%Y"))
-                exp_cat = st.selectbox("Expense Category:", ["Logistics & Shipping", "Packaging & Materials", "Customs & Clearance", "Office & Miscellaneous"])
-                exp_amt = float(st.number_input("Expense Amount (₹):", min_value=0.0, value=1000.0))
-                exp_desc = st.text_input("Description/Notes:")
-                submitted_exp = st.form_submit_button("Record Expense")
-                if submitted_exp:
-                    if exp_amt > 0:
-                        add_db_expense(exp_date, exp_cat, exp_amt, exp_desc)
-                        st.success("Expense added successfully!")
-                        st.rerun()
-                    else:
-                        st.error("Please enter a valid expense amount.")
-
-            st.markdown("### **Recorded Expenses List**")
-            if not all_expenses:
-                st.info("No operational expenses recorded.")
-            else:
-                for exp in reversed(all_expenses):
-                    with st.container(border=True):
-                        st.markdown(f"**Date:** `{exp['date']}` | **Category:** {exp['category']} | **Amount:** **₹{exp['amount']:,.2f}**")
-                        st.text(f"Notes: {exp['description']}")
-                        if st.button("Delete Expense", key=f"del_exp_{exp['id']}"):
-                            delete_db_expense(exp['id'])
-                            st.success("Expense record removed.")
-                            st.rerun()
-
-        with col_p2:
-            st.markdown("### **Financial Summary & True Net Profit**")
-            gross_prof = sum(log.get('profit', 0) for log in get_db_logs())
-            total_exp = sum(e['amount'] for e in get_db_expenses())
-            net_prof = gross_prof - total_exp
-            
-            st.metric("Gross Product Margin Profit", f"₹{gross_prof:,.2f}")
-            st.metric("Total Operational Expenses", f"₹{total_exp:,.2f}")
-            st.metric("True Net Business Profit", f"₹{net_prof:,.2f}", delta_color="normal" if net_prof >= 0 else "inverse")
-            
-            st.info("True Net Profit is calculated automatically by subtracting operational expenses from gross product margins.")
-
-    elif admin_pass_prof:
-        st.error("Incorrect password.")
-    else:
-        st.info("Please enter the admin password to view financial analytics.")
-
-with tab5:
-    st.subheader("🔒 Inventory Management Control (Admin Authentication Required)")
-    admin_pass_inv = st.text_input("Enter Admin Password:", type="password", key="p_inv")
-    if admin_pass_inv == "admin123":
-        st.success("Authentication successful.")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("### **Add / Update Product**")
-            pid = st.text_input("Product ID (e.g., EX104):", key="n_id").strip().upper()
-            pname = st.text_input("Product Name & Specification:", key="n_name").strip()
-            pcost = float(st.number_input("Cost Price per KG (₹):", value=300.0, key="n_cost"))
-            pprice = float(st.number_input("Selling Price per KG (₹):", value=500.0, key="n_price"))
-            pstock = float(st.number_input("Available Stock (KG):", value=1000.0, key="n_stock"))
-            if st.button("Save Product to Warehouse"):
-                if pid and pname:
-                    add_db_product(pid, pname, pcost, pprice, pstock)
-                    st.success("Product inventory updated successfully!")
-                    st.rerun()
-                else:
-                    st.error("Please fill in both Product ID and Name.")
-        with c2:
-            st.markdown("### **Remove Product**")
-            prods = get_db_products()
-            if prods:
-                sel_p = st.selectbox("Select Product ID to Delete:", list(prods.keys()), key="del_p_box")
-                st.text(f"Selected Product: {prods[sel_p]['name']}")
-                if st.button("Delete Product"):
-                    delete_db_product(sel_p)
-                    st.success("Product removed from warehouse inventory!")
-                    st.rerun()
-            else:
-                st.info("No products available to delete.")
-    elif admin_pass_inv:
-        st.error("Incorrect password.")
-    else:
-        st.info("Please enter the admin password to access inventory controls.")
+                        if st.button("💵 Record Partial Payment", key=f"btn_
