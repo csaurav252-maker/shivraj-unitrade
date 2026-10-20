@@ -6,7 +6,7 @@ import os
 import json
 from supabase import create_client, Client
 
-# --- SUPABASE CONFIGURATION ---
+# --- SUPABASE CONFIGURATION (Already Integrated) ---
 SUPABASE_URL = "https://fwlckedxrtkymwqbegos.supabase.co"
 SUPABASE_KEY = "sb_publishable_UJinMiq1Fln8ckiLH0cvlA_2ApxVLLS"
 
@@ -66,16 +66,23 @@ def update_db_stock(pid, new_stock):
     except:
         pass
 
+# --- FIX: Product Add Function with Error Details ---
 def add_db_product(pid, name, cost_price, price_per_kg, stock_kg):
-    if not supabase: 
-        st.error("❌ Supabase connection not found!")
+    if not supabase:
+        st.error("❌ Supabase client connected नाहीये.")
         return False
     try:
-        data = {"pid": pid, "name": name, "cost_price": cost_price, "price_per_kg": price_per_kg, "stock_kg": stock_kg}
-        supabase.table("products").upsert(data).execute()
+        data = {
+            "pid": pid, 
+            "name": name, 
+            "cost_price": float(cost_price), 
+            "price_per_kg": float(price_per_kg), 
+            "stock_kg": float(stock_kg)
+        }
+        res = supabase.table("products").upsert(data).execute()
         return True
     except Exception as e:
-        st.error(f"❌ Database Error: {e}")
+        st.error(f"❌ Product save करताना एरर आली: {e}")
         return False
 
 def delete_db_product(pid):
@@ -208,4 +215,36 @@ with st.sidebar:
             item_cost = float(c_item['price']) * float(c_item['qty'])
             cart_total += item_cost
             st.markdown(f"**{index+1}. {c_item['name']}**\n{c_item['qty']} KG x ₹{c_item['price']:,.2f} = **₹{item_cost:,.2f}**")
-            
+
+        if st.button("🗑️ Clear Cart"):
+            st.session_state.cart = []
+            st.rerun()
+
+        st.markdown(f"### **Grand Total: ₹{cart_total:,.2f}**")
+        st.caption(f"🔤 In Words: {number_to_words(cart_total)}")
+        st.divider()
+        
+        st.subheader("📝 Secure Checkout")
+        buyer_name = st.text_input("Customer/Buyer Name:", key="checkout_buyer_name").strip()
+        buyer_phone = st.text_input("WhatsApp Number (with country code):", key="checkout_buyer_phone").strip()
+        location = st.text_input("Destination Port/City:", key="checkout_location").strip()
+        
+        payment_options = ["Cash", "UPI / Bank Transfer", "Cheque", "Dual Payment Mode"]
+        payment_mode = st.selectbox("Payment Mode:", payment_options, key="checkout_payment_mode")
+        
+        paid_amount = 0.0
+        p1_type, p1_amt, p2_type, p2_amt = "Cash", 0.0, "UPI / Bank Transfer", 0.0
+        current_grand_total = float(sum(float(item['price']) * float(item['qty']) for item in st.session_state.cart)) if st.session_state.cart else 0.0
+
+        if payment_mode == "Dual Payment Mode":
+            c1, c2 = st.columns(2)
+            with c1:
+                p1_type = st.selectbox("Type 1:", ["Cash", "UPI / Bank Transfer", "Cheque"], index=0, key="d_t1")
+            with c2:
+                p1_amt = float(st.number_input("Amount 1:", min_value=0.0, max_value=float(current_grand_total), value=0.0, key="amt1"))
+            c3, c4 = st.columns(2)
+            with c3:
+                p2_type = st.selectbox("Type 2:", ["Cash", "UPI / Bank Transfer", "Cheque"], index=1, key="d_t2")
+            with c4:
+                p2_amt = float(st.number_input("Amount 2:", min_value=0.0, max_value=float(current_grand_total - p1_amt), value=0.0, key="amt2"))
+            paid_
