@@ -398,4 +398,70 @@ with tab2:
         
         for i, log in enumerate(reversed(filtered_logs), 1):
             with st.container(border=True):
-                st.markdown(f"**{
+                st.markdown(f"**{i}. Date:** `{log['time']}` | **Customer:** 👤 **{log['buyer']}** (`{log['location']}`) | **Status:** {log['status']}")
+                st.markdown(f"💰 **Total Invoice:** ₹{log['amount']:,.2f} | 💵 **Total Paid:** ₹{log['paid_amount']:,.2f} | 🔴 **Current Balance Due:** **₹{log['balance_due']:,.2f}**")
+                
+                with st.expander("📋 View Detailed Ledger Breakdown & Commercial Invoice"):
+                    st.markdown("### **SHIVRAJ UNITRADE - COMMERCIAL INVOICE**")
+                    st.text(f"Date & Time: {log['time']}")
+                    st.text(f"Customer Name: {log['buyer']}")
+                    st.text(f"Destination: {log['location']}")
+                    st.text(f"Contact Phone: {log['phone']}")
+                    st.markdown("---")
+                    st.markdown("**Purchased Items:**")
+                    for item in log['items']:
+                        st.text(f"- {item['name']}: {item['qty']} KG @ ₹{item['price']:,.2f}/KG = ₹{float(item['qty'])*float(item['price']):,.2f}")
+                    st.markdown("---")
+                    st.text(f"Grand Total Amount: ₹{log['amount']:,.2f}")
+                    st.text(f"Total Amount Paid: ₹{log['paid_amount']:,.2f}")
+                    st.text(f"Balance Due: ₹{log['balance_due']:,.2f}")
+                    st.markdown(f"**Payment History & Trail:**\n{log['payment']}")
+                    
+                    invoice_text = f"""SHIVRAJ UNITRADE - COMMERCIAL INVOICE
+=====================================
+Date: {log['time']}
+Customer: {log['buyer']}
+Destination: {log['location']}
+-------------------------------------
+Grand Total: INR {log['amount']:,.2f}
+Total Paid: INR {log['paid_amount']:,.2f}
+Balance Due: INR {log['balance_due']:,.2f}
+Payment Status: {log['status']}
+-------------------------------------
+Payment Record Logs:
+{log['payment']}
+=====================================
+Thank you for doing business with Shivraj Unitrade!"""
+                    st.download_button("📥 Download Official Printable Invoice (.txt)", data=invoice_text.encode('utf-8'), file_name=f"Invoice_{log['buyer']}_{log['id']}.txt", mime="text/plain", key=f"dl_inv_{log['id']}")
+
+                if log.get('phone'):
+                    wa_url = f"https://wa.me/{log['phone']}?text={urllib.parse.quote(log['msg'])}"
+                    st.markdown(f"📲 [Send Commercial Invoice via WhatsApp]({wa_url})")
+                
+                single_pass = st.text_input("Admin Password to Delete Record:", type="password", key=f"del_pass_{log['id']}")
+                if st.button("🗑️ Delete Transaction Record", key=f"btn_del_{log['id']}"):
+                    if single_pass == "admin123":
+                        delete_db_log(log['id'])
+                        st.success("Record deleted successfully!")
+                        st.rerun()
+                    else:
+                        st.error("Authentication Failed: Wrong Admin Password.")
+
+with tab3:
+    st.subheader("📉 Credit Ledger & Accounts Receivable (Partial & Full Payments)")
+    pending_logs = [log for log in get_db_logs() if log['balance_due'] > 0]
+    if not pending_logs:
+        st.success("🎉 Outstanding accounts clear! No pending credit balances found.")
+    else:
+        for log in pending_logs:
+            with st.container(border=True):
+                c_info, c_action = st.columns([2, 2])
+                with c_info:
+                    st.markdown(f"👤 **{log['buyer']}** (`{log['location']}`)")
+                    st.markdown(f"💰 **Total Invoice:** ₹{log['amount']:,.2f} | 💵 **Paid So Far:** ₹{log['paid_amount']:,.2f}")
+                    st.markdown(f"🔴 **Current Balance Due:** **₹{log['balance_due']:,.2f}**")
+                    with st.expander("📜 View Full Payment Audit Trail"):
+                        st.text(log['payment'])
+                
+                with c_action:
+                    partial_pay = st.number_input("Enter Partial Payment Amount Received:", min_value=0.0, max_value=float(log['balance_due']), value
